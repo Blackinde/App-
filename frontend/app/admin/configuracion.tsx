@@ -5,37 +5,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '@/src/utils/theme';
 import { Button, Card, Input } from '@/src/components/ui';
 import { Service } from '@/src/types';
+import { useIntegrationsStore, Integration } from '@/src/store/integrationsStore';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
-interface Integration {
-  id: string;
-  name: string;
-  description: string;
-  service_id: string | null;
-  service_name?: string;
-  base_url: string;
-  endpoint: string;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
-  api_key: string;
-  headers: Record<string, string>;
-  timeout: number;
-  webhook_url: string;
-  is_active: boolean;
-  is_mock_mode: boolean;
-  request_mapping: string;
-  response_mapping: string;
-  last_test_status: 'success' | 'error' | 'pending' | null;
-  last_test_at: string | null;
-  created_at: string;
-}
-
-const DEFAULT_INTEGRATION: Partial<Integration> = {
+const DEFAULT_INTEGRATION: Omit<Integration, 'id' | 'created_at'> = {
   name: '',
   description: '',
   service_id: null,
+  service_name: undefined,
   base_url: '',
   endpoint: '',
   method: 'POST',
@@ -47,87 +27,34 @@ const DEFAULT_INTEGRATION: Partial<Integration> = {
   is_mock_mode: true,
   request_mapping: '{\n  "curp": "{{input.curp}}",\n  "nss": "{{input.nss}}"\n}',
   response_mapping: '{\n  "nombre": "{{response.data.nombre}}",\n  "estado": "{{response.data.estado}}"\n}',
+  last_test_status: null,
+  last_test_at: null,
 };
-
-// Mock data for demo - In production this would come from API
-const MOCK_INTEGRATIONS: Integration[] = [
-  {
-    id: '1',
-    name: 'IMSS Historial Laboral',
-    description: 'Consulta historial laboral vía API del IMSS',
-    service_id: 'svc1',
-    service_name: 'Historial Laboral IMSS',
-    base_url: 'https://api.imss.gob.mx',
-    endpoint: '/v1/historial-laboral',
-    method: 'POST',
-    api_key: 'sk_imss_*****',
-    headers: { 'Content-Type': 'application/json' },
-    timeout: 30,
-    webhook_url: '',
-    is_active: true,
-    is_mock_mode: true,
-    request_mapping: '{"nss": "{{input.nss}}", "curp": "{{input.curp}}"}',
-    response_mapping: '{"semanas": "{{response.semanas_cotizadas}}", "patron": "{{response.ultimo_patron}}"}',
-    last_test_status: 'success',
-    last_test_at: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    name: 'SAT Constancia Fiscal',
-    description: 'Generación de constancia de situación fiscal',
-    service_id: 'svc2',
-    service_name: 'Constancia Fiscal SAT',
-    base_url: 'https://api.sat.gob.mx',
-    endpoint: '/v1/constancia-situacion',
-    method: 'POST',
-    api_key: 'sk_sat_*****',
-    headers: { 'Content-Type': 'application/json', 'X-SAT-Version': '2.0' },
-    timeout: 60,
-    webhook_url: 'https://tramitly.mx/webhooks/sat',
-    is_active: false,
-    is_mock_mode: true,
-    request_mapping: '{"rfc": "{{input.rfc}}"}',
-    response_mapping: '{"pdf_url": "{{response.documento_url}}", "vigencia": "{{response.vigencia}}"}',
-    last_test_status: 'error',
-    last_test_at: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: '3',
-    name: 'RENAPO CURP',
-    description: 'Verificación de CURP vía RENAPO',
-    service_id: 'svc3',
-    service_name: 'Verificación CURP',
-    base_url: 'https://api.renapo.gob.mx',
-    endpoint: '/v2/consulta-curp',
-    method: 'GET',
-    api_key: '',
-    headers: {},
-    timeout: 15,
-    webhook_url: '',
-    is_active: true,
-    is_mock_mode: true,
-    request_mapping: '{"curp": "{{input.curp}}"}',
-    response_mapping: '{"nombre": "{{response.nombres}}", "apellidos": "{{response.apellido1}} {{response.apellido2}}"}',
-    last_test_status: 'pending',
-    last_test_at: null,
-    created_at: new Date().toISOString(),
-  },
-];
 
 export default function ConfiguracionPage() {
   const insets = useSafeAreaInsets();
-  const [integrations, setIntegrations] = useState<Integration[]>(MOCK_INTEGRATIONS);
+  const { 
+    integrations, 
+    addIntegration, 
+    updateIntegration, 
+    deleteIntegration,
+    linkServiceToIntegration,
+    unlinkServiceFromIntegration,
+    toggleActive,
+    toggleMockMode,
+    updateTestStatus 
+  } = useIntegrationsStore();
+  
   const [services, setServices] = useState<Service[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [editForm, setEditForm] = useState<Partial<Integration>>(DEFAULT_INTEGRATION);
-  const [headersText, setHeadersText] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [editForm, setEditForm] = useState<Omit<Integration, 'id' | 'created_at'>>(DEFAULT_INTEGRATION);
+  const [headersText, setHeadersText] = useState('{}');
 
   useEffect(() => {
     loadServices();
@@ -135,10 +62,15 @@ export default function ConfiguracionPage() {
 
   const loadServices = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/services?active_only=false`);
+      const token = await AsyncStorage.getItem('tramitly_token');
+      const response = await axios.get(`${API_URL}/api/services?active_only=false`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setServices(response.data);
     } catch (error) {
       console.error('Error loading services:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -150,7 +82,25 @@ export default function ConfiguracionPage() {
 
   const handleOpenIntegration = (integration: Integration) => {
     setSelectedIntegration(integration);
-    setEditForm(integration);
+    setEditForm({
+      name: integration.name,
+      description: integration.description,
+      service_id: integration.service_id,
+      service_name: integration.service_name,
+      base_url: integration.base_url,
+      endpoint: integration.endpoint,
+      method: integration.method,
+      api_key: integration.api_key,
+      headers: integration.headers,
+      timeout: integration.timeout,
+      webhook_url: integration.webhook_url,
+      is_active: integration.is_active,
+      is_mock_mode: integration.is_mock_mode,
+      request_mapping: integration.request_mapping,
+      response_mapping: integration.response_mapping,
+      last_test_status: integration.last_test_status,
+      last_test_at: integration.last_test_at,
+    });
     setHeadersText(JSON.stringify(integration.headers, null, 2));
     setEditMode(false);
     setModalVisible(true);
@@ -165,44 +115,93 @@ export default function ConfiguracionPage() {
   };
 
   const handleSaveIntegration = () => {
+    // Validation
+    if (!editForm.name.trim()) {
+      Alert.alert('Error', 'El nombre es requerido');
+      return;
+    }
+    if (!editForm.base_url.trim()) {
+      Alert.alert('Error', 'La URL base es requerida');
+      return;
+    }
+
     try {
       const headers = JSON.parse(headersText);
-      const updatedIntegration: Integration = {
-        ...(selectedIntegration || {}),
-        ...editForm,
-        headers,
-        id: selectedIntegration?.id || Date.now().toString(),
-        created_at: selectedIntegration?.created_at || new Date().toISOString(),
-      } as Integration;
-
+      
       if (selectedIntegration) {
-        setIntegrations(prev => prev.map(i => i.id === selectedIntegration.id ? updatedIntegration : i));
+        // Update existing
+        updateIntegration(selectedIntegration.id, {
+          ...editForm,
+          headers,
+        });
+        Alert.alert('Éxito', 'Integración actualizada correctamente');
       } else {
-        setIntegrations(prev => [...prev, updatedIntegration]);
+        // Create new
+        addIntegration({
+          ...editForm,
+          headers,
+        });
+        Alert.alert('Éxito', 'Integración creada correctamente');
       }
       
       setModalVisible(false);
-      Alert.alert('Éxito', 'Integración guardada correctamente');
     } catch (error) {
       Alert.alert('Error', 'Los headers deben ser un JSON válido');
     }
   };
 
+  const handleDeleteIntegration = () => {
+    if (!selectedIntegration) return;
+
+    Alert.alert(
+      'Eliminar Integración',
+      `¿Estás seguro de eliminar "${selectedIntegration.name}"? Esta acción no se puede deshacer.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => {
+            deleteIntegration(selectedIntegration.id);
+            setModalVisible(false);
+            Alert.alert('Éxito', 'Integración eliminada');
+          }
+        }
+      ]
+    );
+  };
+
+  const handleLinkService = (serviceId: string | null) => {
+    if (!selectedIntegration) return;
+    
+    if (serviceId) {
+      const service = services.find(s => s.id === serviceId);
+      if (service) {
+        linkServiceToIntegration(selectedIntegration.id, serviceId, service.name);
+        setEditForm({ ...editForm, service_id: serviceId, service_name: service.name });
+      }
+    } else {
+      unlinkServiceFromIntegration(selectedIntegration.id);
+      setEditForm({ ...editForm, service_id: null, service_name: undefined });
+    }
+  };
+
   const handleTestConnection = async () => {
+    if (!selectedIntegration) return;
+    
     setTesting(true);
     // Simulate API test
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     const success = Math.random() > 0.3; // 70% success rate for demo
+    updateTestStatus(selectedIntegration.id, success ? 'success' : 'error');
     
-    if (selectedIntegration) {
-      setIntegrations(prev => prev.map(i => 
-        i.id === selectedIntegration.id 
-          ? { ...i, last_test_status: success ? 'success' : 'error', last_test_at: new Date().toISOString() }
-          : i
-      ));
-      setSelectedIntegration(prev => prev ? { ...prev, last_test_status: success ? 'success' : 'error' } : null);
-    }
+    // Update local state
+    setSelectedIntegration({
+      ...selectedIntegration,
+      last_test_status: success ? 'success' : 'error',
+      last_test_at: new Date().toISOString(),
+    });
     
     setTesting(false);
     Alert.alert(
@@ -214,16 +213,22 @@ export default function ConfiguracionPage() {
     );
   };
 
-  const handleToggleActive = (integration: Integration) => {
-    setIntegrations(prev => prev.map(i => 
-      i.id === integration.id ? { ...i, is_active: !i.is_active } : i
-    ));
+  const handleToggleActive = () => {
+    if (!selectedIntegration) return;
+    toggleActive(selectedIntegration.id);
+    setSelectedIntegration({
+      ...selectedIntegration,
+      is_active: !selectedIntegration.is_active,
+    });
   };
 
-  const handleToggleMockMode = (integration: Integration) => {
-    setIntegrations(prev => prev.map(i => 
-      i.id === integration.id ? { ...i, is_mock_mode: !i.is_mock_mode } : i
-    ));
+  const handleToggleMockMode = () => {
+    if (!selectedIntegration) return;
+    toggleMockMode(selectedIntegration.id);
+    setSelectedIntegration({
+      ...selectedIntegration,
+      is_mock_mode: !selectedIntegration.is_mock_mode,
+    });
   };
 
   const getStatusColor = (status: string | null) => {
@@ -244,6 +249,9 @@ export default function ConfiguracionPage() {
     }
   };
 
+  // Find services that are already linked
+  const linkedServiceIds = integrations.map(i => i.service_id).filter(Boolean);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -263,11 +271,7 @@ export default function ConfiguracionPage() {
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.brand.primary}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand.primary} />
         }
       >
         {/* Stats */}
@@ -283,10 +287,10 @@ export default function ConfiguracionPage() {
             <Text style={styles.statLabel}>Activas</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: colors.status.warning }]}>
-              {integrations.filter(i => i.is_mock_mode).length}
+            <Text style={[styles.statValue, { color: colors.brand.primary }]}>
+              {integrations.filter(i => i.service_id).length}
             </Text>
-            <Text style={styles.statLabel}>Mock</Text>
+            <Text style={styles.statLabel}>Vinculadas</Text>
           </View>
         </View>
 
@@ -294,61 +298,75 @@ export default function ConfiguracionPage() {
         <View style={styles.infoBanner}>
           <Ionicons name="information-circle" size={20} color={colors.status.info} />
           <Text style={styles.infoText}>
-            Las integraciones en modo <Text style={styles.bold}>Mock</Text> devuelven datos simulados. 
-            Cambia a modo <Text style={styles.bold}>Real</Text> cuando tengas las credenciales de API.
+            Vincula cada integración a un servicio para que las órdenes se procesen automáticamente.
+            El modo <Text style={styles.bold}>Mock</Text> devuelve datos simulados.
           </Text>
         </View>
 
         {/* Integrations List */}
-        {integrations.map((integration) => (
-          <TouchableOpacity
-            key={integration.id}
-            style={styles.integrationCard}
-            onPress={() => handleOpenIntegration(integration)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.integrationHeader}>
-              <View style={[
-                styles.statusDot,
-                { backgroundColor: integration.is_active ? colors.status.success : colors.text.muted }
-              ]} />
-              <View style={styles.integrationInfo}>
-                <Text style={styles.integrationName}>{integration.name}</Text>
-                <Text style={styles.integrationDesc}>{integration.description}</Text>
+        {integrations.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="cloud-outline" size={64} color={colors.text.muted} />
+            <Text style={styles.emptyTitle}>Sin integraciones</Text>
+            <Text style={styles.emptyText}>Crea tu primera integración API</Text>
+            <Button title="Crear Integración" onPress={handleNewIntegration} style={{ marginTop: spacing.lg }} />
+          </View>
+        ) : (
+          integrations.map((integration) => (
+            <TouchableOpacity
+              key={integration.id}
+              style={styles.integrationCard}
+              onPress={() => handleOpenIntegration(integration)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.integrationHeader}>
+                <View style={[
+                  styles.statusDot,
+                  { backgroundColor: integration.is_active ? colors.status.success : colors.text.muted }
+                ]} />
+                <View style={styles.integrationInfo}>
+                  <Text style={styles.integrationName}>{integration.name}</Text>
+                  <Text style={styles.integrationDesc}>{integration.description}</Text>
+                </View>
+                <View style={styles.integrationBadges}>
+                  {integration.is_mock_mode && (
+                    <View style={styles.mockBadge}>
+                      <Text style={styles.mockBadgeText}>MOCK</Text>
+                    </View>
+                  )}
+                  <Ionicons
+                    name={getStatusIcon(integration.last_test_status)}
+                    size={20}
+                    color={getStatusColor(integration.last_test_status)}
+                  />
+                </View>
               </View>
-              <View style={styles.integrationBadges}>
-                {integration.is_mock_mode && (
-                  <View style={styles.mockBadge}>
-                    <Text style={styles.mockBadgeText}>MOCK</Text>
-                  </View>
-                )}
-                <Ionicons
-                  name={getStatusIcon(integration.last_test_status)}
-                  size={20}
-                  color={getStatusColor(integration.last_test_status)}
-                />
+              
+              <View style={styles.integrationMeta}>
+                <View style={styles.metaItem}>
+                  <Ionicons name="link" size={14} color={colors.text.muted} />
+                  <Text style={styles.metaText}>{integration.base_url}</Text>
+                </View>
+                <View style={styles.metaItem}>
+                  <Ionicons name="code-slash" size={14} color={colors.text.muted} />
+                  <Text style={styles.metaText}>{integration.method} {integration.endpoint}</Text>
+                </View>
               </View>
-            </View>
-            
-            <View style={styles.integrationMeta}>
-              <View style={styles.metaItem}>
-                <Ionicons name="link" size={14} color={colors.text.muted} />
-                <Text style={styles.metaText}>{integration.base_url}</Text>
-              </View>
-              <View style={styles.metaItem}>
-                <Ionicons name="code-slash" size={14} color={colors.text.muted} />
-                <Text style={styles.metaText}>{integration.method} {integration.endpoint}</Text>
-              </View>
-            </View>
 
-            {integration.service_name && (
-              <View style={styles.serviceLink}>
-                <Ionicons name="cube" size={14} color={colors.brand.primary} />
-                <Text style={styles.serviceLinkText}>Vinculado a: {integration.service_name}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        ))}
+              {integration.service_name ? (
+                <View style={styles.serviceLink}>
+                  <Ionicons name="cube" size={14} color={colors.status.success} />
+                  <Text style={styles.serviceLinkText}>Vinculado a: {integration.service_name}</Text>
+                </View>
+              ) : (
+                <View style={styles.serviceLink}>
+                  <Ionicons name="warning" size={14} color={colors.status.warning} />
+                  <Text style={styles.serviceLinkWarning}>Sin servicio vinculado</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          ))
+        )}
       </ScrollView>
 
       {/* Integration Detail/Edit Modal */}
@@ -378,12 +396,12 @@ export default function ConfiguracionPage() {
             </View>
           </View>
           
-          <ScrollView contentContainerStyle={styles.modalContent}>
+          <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
             {editMode ? (
               <>
                 <Input
                   label="Nombre de la Integración *"
-                  value={editForm.name || ''}
+                  value={editForm.name}
                   onChangeText={(text) => setEditForm({ ...editForm, name: text })}
                   placeholder="Ej: IMSS Historial Laboral"
                   icon="text-outline"
@@ -391,40 +409,57 @@ export default function ConfiguracionPage() {
                 
                 <Input
                   label="Descripción"
-                  value={editForm.description || ''}
+                  value={editForm.description}
                   onChangeText={(text) => setEditForm({ ...editForm, description: text })}
                   placeholder="Breve descripción de la integración"
                   icon="document-text-outline"
                 />
 
                 <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Servicio Vinculado</Text>
+                  <Text style={styles.formLabel}>Vincular a Servicio</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.serviceSelector}>
                     <TouchableOpacity
                       style={[styles.serviceOption, !editForm.service_id && styles.serviceOptionActive]}
-                      onPress={() => setEditForm({ ...editForm, service_id: null })}
+                      onPress={() => setEditForm({ ...editForm, service_id: null, service_name: undefined })}
                     >
                       <Text style={[styles.serviceOptionText, !editForm.service_id && styles.serviceOptionTextActive]}>
                         Ninguno
                       </Text>
                     </TouchableOpacity>
-                    {services.map((service) => (
-                      <TouchableOpacity
-                        key={service.id}
-                        style={[styles.serviceOption, editForm.service_id === service.id && styles.serviceOptionActive]}
-                        onPress={() => setEditForm({ ...editForm, service_id: service.id })}
-                      >
-                        <Text style={[styles.serviceOptionText, editForm.service_id === service.id && styles.serviceOptionTextActive]}>
-                          {service.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                    {services.map((service) => {
+                      const isLinkedToOther = linkedServiceIds.includes(service.id) && editForm.service_id !== service.id;
+                      return (
+                        <TouchableOpacity
+                          key={service.id}
+                          style={[
+                            styles.serviceOption, 
+                            editForm.service_id === service.id && styles.serviceOptionActive,
+                            isLinkedToOther && styles.serviceOptionDisabled
+                          ]}
+                          onPress={() => {
+                            if (!isLinkedToOther) {
+                              setEditForm({ ...editForm, service_id: service.id, service_name: service.name });
+                            }
+                          }}
+                          disabled={isLinkedToOther}
+                        >
+                          <Text style={[
+                            styles.serviceOptionText, 
+                            editForm.service_id === service.id && styles.serviceOptionTextActive,
+                            isLinkedToOther && styles.serviceOptionTextDisabled
+                          ]}>
+                            {service.name}
+                            {isLinkedToOther && ' (vinculado)'}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </ScrollView>
                 </View>
 
                 <Input
                   label="Base URL *"
-                  value={editForm.base_url || ''}
+                  value={editForm.base_url}
                   onChangeText={(text) => setEditForm({ ...editForm, base_url: text })}
                   placeholder="https://api.example.com"
                   icon="globe-outline"
@@ -433,7 +468,7 @@ export default function ConfiguracionPage() {
 
                 <Input
                   label="Endpoint *"
-                  value={editForm.endpoint || ''}
+                  value={editForm.endpoint}
                   onChangeText={(text) => setEditForm({ ...editForm, endpoint: text })}
                   placeholder="/v1/consulta"
                   icon="code-slash-outline"
@@ -459,7 +494,7 @@ export default function ConfiguracionPage() {
 
                 <Input
                   label="API Key / Token"
-                  value={editForm.api_key || ''}
+                  value={editForm.api_key}
                   onChangeText={(text) => setEditForm({ ...editForm, api_key: text })}
                   placeholder="sk_live_xxxx"
                   icon="key-outline"
@@ -481,7 +516,7 @@ export default function ConfiguracionPage() {
 
                 <Input
                   label="Timeout (segundos)"
-                  value={editForm.timeout?.toString() || '30'}
+                  value={editForm.timeout.toString()}
                   onChangeText={(text) => setEditForm({ ...editForm, timeout: parseInt(text) || 30 })}
                   placeholder="30"
                   icon="time-outline"
@@ -490,7 +525,7 @@ export default function ConfiguracionPage() {
 
                 <Input
                   label="Webhook URL (opcional)"
-                  value={editForm.webhook_url || ''}
+                  value={editForm.webhook_url}
                   onChangeText={(text) => setEditForm({ ...editForm, webhook_url: text })}
                   placeholder="https://yoursite.com/webhook"
                   icon="git-branch-outline"
@@ -501,7 +536,7 @@ export default function ConfiguracionPage() {
                   <Text style={styles.formLabel}>Mapeo de Request (JSON Template)</Text>
                   <TextInput
                     style={styles.codeInput}
-                    value={editForm.request_mapping || ''}
+                    value={editForm.request_mapping}
                     onChangeText={(text) => setEditForm({ ...editForm, request_mapping: text })}
                     placeholder='{"field": "{{input.field}}"}'
                     placeholderTextColor={colors.text.muted}
@@ -515,7 +550,7 @@ export default function ConfiguracionPage() {
                   <Text style={styles.formLabel}>Mapeo de Response (JSON Template)</Text>
                   <TextInput
                     style={styles.codeInput}
-                    value={editForm.response_mapping || ''}
+                    value={editForm.response_mapping}
                     onChangeText={(text) => setEditForm({ ...editForm, response_mapping: text })}
                     placeholder='{"result": "{{response.data}}"}'
                     placeholderTextColor={colors.text.muted}
@@ -552,12 +587,23 @@ export default function ConfiguracionPage() {
                 </View>
 
                 <Button
-                  title="Guardar Integración"
+                  title={selectedIntegration ? 'Guardar Cambios' : 'Crear Integración'}
                   onPress={handleSaveIntegration}
+                  loading={saving}
                   size="lg"
                   fullWidth
                   style={{ marginTop: spacing.lg }}
                 />
+
+                {selectedIntegration && (
+                  <Button
+                    title="Eliminar Integración"
+                    variant="danger"
+                    onPress={handleDeleteIntegration}
+                    fullWidth
+                    style={{ marginTop: spacing.md }}
+                  />
+                )}
               </>
             ) : selectedIntegration && (
               <>
@@ -588,6 +634,48 @@ export default function ConfiguracionPage() {
                   </View>
                 </View>
 
+                {/* Service Link Section */}
+                <Card style={styles.detailCard}>
+                  <Text style={styles.cardTitle}>Servicio Vinculado</Text>
+                  {selectedIntegration.service_name ? (
+                    <View style={styles.linkedServiceBox}>
+                      <View style={styles.linkedServiceInfo}>
+                        <Ionicons name="cube" size={24} color={colors.status.success} />
+                        <View>
+                          <Text style={styles.linkedServiceName}>{selectedIntegration.service_name}</Text>
+                          <Text style={styles.linkedServiceHint}>Las órdenes de este servicio usarán esta API</Text>
+                        </View>
+                      </View>
+                      <Button
+                        title="Desvincular"
+                        variant="outline"
+                        size="sm"
+                        onPress={() => handleLinkService(null)}
+                      />
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={styles.noServiceText}>Selecciona un servicio para vincular:</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.serviceLinkSelector}>
+                        {services.filter(s => !linkedServiceIds.includes(s.id)).map((service) => (
+                          <TouchableOpacity
+                            key={service.id}
+                            style={styles.serviceLinkOption}
+                            onPress={() => handleLinkService(service.id)}
+                          >
+                            <Ionicons name="cube-outline" size={20} color={colors.brand.primary} />
+                            <Text style={styles.serviceLinkOptionText}>{service.name}</Text>
+                            <Ionicons name="add-circle" size={18} color={colors.brand.primary} />
+                          </TouchableOpacity>
+                        ))}
+                        {services.filter(s => !linkedServiceIds.includes(s.id)).length === 0 && (
+                          <Text style={styles.allLinkedText}>Todos los servicios ya están vinculados</Text>
+                        )}
+                      </ScrollView>
+                    </>
+                  )}
+                </Card>
+
                 <Card style={styles.detailCard}>
                   <Text style={styles.cardTitle}>Configuración de API</Text>
                   <View style={styles.detailRow}>
@@ -604,19 +692,9 @@ export default function ConfiguracionPage() {
                   </View>
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>API Key:</Text>
-                    <Text style={styles.detailValue}>{selectedIntegration.api_key || 'No configurada'}</Text>
+                    <Text style={styles.detailValue}>{selectedIntegration.api_key ? '••••••••' : 'No configurada'}</Text>
                   </View>
                 </Card>
-
-                {selectedIntegration.service_name && (
-                  <Card style={styles.detailCard}>
-                    <Text style={styles.cardTitle}>Servicio Vinculado</Text>
-                    <View style={styles.linkedService}>
-                      <Ionicons name="cube" size={24} color={colors.brand.primary} />
-                      <Text style={styles.linkedServiceName}>{selectedIntegration.service_name}</Text>
-                    </View>
-                  </Card>
-                )}
 
                 <Card style={styles.detailCard}>
                   <Text style={styles.cardTitle}>Estado de Conexión</Text>
@@ -651,10 +729,7 @@ export default function ConfiguracionPage() {
                 </Card>
 
                 <View style={styles.quickActions}>
-                  <TouchableOpacity
-                    style={styles.quickAction}
-                    onPress={() => handleToggleActive(selectedIntegration)}
-                  >
+                  <TouchableOpacity style={styles.quickAction} onPress={handleToggleActive}>
                     <Ionicons
                       name={selectedIntegration.is_active ? 'pause-circle' : 'play-circle'}
                       size={24}
@@ -664,10 +739,7 @@ export default function ConfiguracionPage() {
                       {selectedIntegration.is_active ? 'Desactivar' : 'Activar'}
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.quickAction}
-                    onPress={() => handleToggleMockMode(selectedIntegration)}
-                  >
+                  <TouchableOpacity style={styles.quickAction} onPress={handleToggleMockMode}>
                     <Ionicons
                       name={selectedIntegration.is_mock_mode ? 'cloud-upload' : 'flask'}
                       size={24}
@@ -757,6 +829,21 @@ const styles = StyleSheet.create({
   bold: {
     fontWeight: fontWeight.bold,
   },
+  emptyState: {
+    alignItems: 'center',
+    padding: spacing['3xl'],
+  },
+  emptyTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.semibold,
+    color: colors.text.primary,
+    marginTop: spacing.lg,
+  },
+  emptyText: {
+    fontSize: fontSize.base,
+    color: colors.text.muted,
+    marginTop: spacing.xs,
+  },
   integrationCard: {
     backgroundColor: colors.bg.card,
     borderRadius: borderRadius.lg,
@@ -830,10 +917,15 @@ const styles = StyleSheet.create({
   },
   serviceLinkText: {
     fontSize: fontSize.xs,
-    color: colors.brand.primary,
+    color: colors.status.success,
     fontWeight: fontWeight.medium,
   },
-  // Modal
+  serviceLinkWarning: {
+    fontSize: fontSize.xs,
+    color: colors.status.warning,
+    fontWeight: fontWeight.medium,
+  },
+  // Modal styles
   modalContainer: {
     flex: 1,
     backgroundColor: colors.bg.primary,
@@ -887,6 +979,7 @@ const styles = StyleSheet.create({
   },
   serviceSelector: {
     flexDirection: 'row',
+    maxHeight: 50,
   },
   serviceOption: {
     paddingHorizontal: spacing.md,
@@ -898,12 +991,18 @@ const styles = StyleSheet.create({
   serviceOptionActive: {
     backgroundColor: colors.brand.primary,
   },
+  serviceOptionDisabled: {
+    opacity: 0.5,
+  },
   serviceOptionText: {
     fontSize: fontSize.sm,
     color: colors.text.secondary,
   },
   serviceOptionTextActive: {
     color: colors.text.inverse,
+  },
+  serviceOptionTextDisabled: {
+    color: colors.text.muted,
   },
   methodSelector: {
     flexDirection: 'row',
@@ -1012,15 +1111,53 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.medium,
     fontFamily: 'monospace',
   },
-  linkedService: {
+  linkedServiceBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  linkedServiceInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
+    flex: 1,
   },
   linkedServiceName: {
     fontSize: fontSize.md,
     fontWeight: fontWeight.semibold,
     color: colors.text.primary,
+  },
+  linkedServiceHint: {
+    fontSize: fontSize.xs,
+    color: colors.text.muted,
+  },
+  noServiceText: {
+    fontSize: fontSize.sm,
+    color: colors.text.secondary,
+    marginBottom: spacing.md,
+  },
+  serviceLinkSelector: {
+    flexDirection: 'row',
+  },
+  serviceLinkOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.bg.tertiary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    marginRight: spacing.sm,
+  },
+  serviceLinkOptionText: {
+    fontSize: fontSize.sm,
+    color: colors.brand.primary,
+    fontWeight: fontWeight.medium,
+  },
+  allLinkedText: {
+    fontSize: fontSize.sm,
+    color: colors.text.muted,
+    fontStyle: 'italic',
   },
   testStatus: {
     flexDirection: 'row',

@@ -10,7 +10,21 @@ export default function RootLayout() {
   const { loadUser, isLoading } = useAuthStore();
 
   useEffect(() => {
-    loadUser();
+    const init = async () => {
+      try {
+        await loadUser();
+      } catch (error) {
+        console.error('Error loading user:', error);
+      }
+    };
+    init();
+    
+    // Safety timeout to ensure we don't get stuck
+    const timeout = setTimeout(() => {
+      useAuthStore.setState({ isLoading: false });
+    }, 3000);
+    
+    return () => clearTimeout(timeout);
   }, []);
 
   if (isLoading) {
