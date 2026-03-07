@@ -1,32 +1,31 @@
 #!/usr/bin/env python3
 """
-Comprehensive Backend API Testing for ProcedimientosMX SaaS Platform
-Tests all authentication, services, orders, payments, documents, and admin APIs
+Comprehensive Backend API Testing for TRAMITLY SaaS Platform
+Tests all authentication, services, orders, transactions, dashboard and admin APIs
 """
 
 import requests
 import json
-import base64
 import uuid
 from datetime import datetime
 import time
 
-class ProcedimientosMXTester:
+class TramitlyAPITester:
     def __init__(self):
         # Use the production URL from frontend/.env
         self.base_url = "https://procedimientos-api.preview.emergentagent.com/api"
         self.admin_token = None
-        self.client_token = None
-        self.test_user_id = None
+        self.demo_user_token = None
+        self.new_user_token = None
         self.test_service_id = None
         self.test_order_id = None
-        self.test_payment_id = None
         self.results = {
+            "seed": {},
             "authentication": {},
             "services": {},
             "orders": {},
-            "payments": {},
-            "documents": {},
+            "transactions": {},
+            "dashboard": {},
             "admin": {}
         }
         
@@ -41,24 +40,34 @@ class ProcedimientosMXTester:
             "response_data": response_data if success else None
         }
         
-    def setup_test_data(self):
-        """Seed initial data if needed"""
+    # ==================== SEED DATA TESTS ====================
+    
+    def test_seed_data(self):
+        """Test POST /api/seed - Creates demo data"""
         try:
-            response = requests.post(f"{self.base_url}/seed", timeout=10)
+            response = requests.post(f"{self.base_url}/seed", timeout=15)
+            
             if response.status_code == 200:
-                print("✅ Database seeded successfully")
+                data = response.json()
+                self.log_test("seed", "seed_data", True, 
+                            f"Seed successful: {data.get('services_count', 0)} services created")
+                return True
             else:
-                print(f"ℹ️  Seed response: {response.status_code} - {response.text[:200]}")
+                self.log_test("seed", "seed_data", False, 
+                            f"HTTP {response.status_code}: {response.text[:200]}")
+                
         except Exception as e:
-            print(f"⚠️  Seed attempt failed: {e}")
+            self.log_test("seed", "seed_data", False, f"Exception: {e}")
+            
+        return False
     
     # ==================== AUTHENTICATION TESTS ====================
     
     def test_admin_login(self):
-        """Test admin login with provided credentials"""
+        """Test admin login with admin@tramitly.mx / Admin123!"""
         try:
             payload = {
-                "email": "admin@procedimientos.mx",
+                "email": "admin@tramitly.mx",
                 "password": "Admin123!"
             }
             
@@ -85,16 +94,46 @@ class ProcedimientosMXTester:
             
         return False
     
+    def test_demo_user_login(self):
+        """Test demo user login with demo@tramitly.mx / Demo123!"""
+        try:
+            payload = {
+                "email": "demo@tramitly.mx",
+                "password": "Demo123!"
+            }
+            
+            response = requests.post(f"{self.base_url}/auth/login", json=payload, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.demo_user_token = data.get("token")
+                user_data = data.get("user", {})
+                
+                if user_data.get("role") == "user" and user_data.get("balance") == 1500:
+                    self.log_test("authentication", "demo_user_login", True, 
+                                f"Demo user login successful, balance: ${user_data.get('balance')}")
+                    return True
+                else:
+                    self.log_test("authentication", "demo_user_login", False, 
+                                f"Login successful but role: {user_data.get('role')}, balance: ${user_data.get('balance')}")
+            else:
+                self.log_test("authentication", "demo_user_login", False, 
+                            f"HTTP {response.status_code}: {response.text[:200]}")
+                
+        except Exception as e:
+            self.log_test("authentication", "demo_user_login", False, f"Exception: {e}")
+            
+        return False
+    
     def test_user_registration(self):
         """Test new user registration"""
         try:
             # Generate unique email for testing
-            test_email = f"test.user.{int(time.time())}@procedimientos.mx"
+            test_email = f"test.user.{int(time.time())}@tramitly.mx"
             
             payload = {
-                "full_name": "Juan Carlos Pérez López",
+                "name": "Carlos Mendoza Ruiz",
                 "email": test_email,
-                "phone": "+52 55 9876 5432",
                 "password": "TestUser123!"
             }
             
@@ -102,17 +141,16 @@ class ProcedimientosMXTester:
             
             if response.status_code == 200:
                 data = response.json()
-                self.client_token = data.get("token")
+                self.new_user_token = data.get("token")
                 user_data = data.get("user", {})
-                self.test_user_id = user_data.get("id")
                 
-                if user_data.get("role") == "client":
+                if user_data.get("role") == "user":
                     self.log_test("authentication", "user_registration", True, 
-                                f"User registered: {user_data.get('full_name')}, ID: {self.test_user_id}")
+                                f"User registered: {user_data.get('name')}, balance: ${user_data.get('balance')}")
                     return True
                 else:
                     self.log_test("authentication", "user_registration", False, 
-                                f"Registration successful but role is not client: {user_data.get('role')}")
+                                f"Registration successful but role is not user: {user_data.get('role')}")
             else:
                 self.log_test("authentication", "user_registration", False, 
                             f"HTTP {response.status_code}: {response.text[:200]}")
@@ -135,7 +173,7 @@ class ProcedimientosMXTester:
             if response.status_code == 200:
                 data = response.json()
                 self.log_test("authentication", "get_current_user", True, 
-                            f"Current user: {data.get('full_name')} ({data.get('role')})")
+                            f"Current user: {data.get('name')} ({data.get('role')})")
                 return True
             else:
                 self.log_test("authentication", "get_current_user", False, 
@@ -143,6 +181,32 @@ class ProcedimientosMXTester:
                 
         except Exception as e:
             self.log_test("authentication", "get_current_user", False, f"Exception: {e}")
+            
+        return False
+    
+    def test_update_profile(self):
+        """Test PUT /auth/profile with Bearer token"""
+        if not self.demo_user_token:
+            self.log_test("authentication", "update_profile", False, "No demo user token available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.demo_user_token}"}
+            payload = {"name": "Usuario Demo Actualizado"}
+            
+            response = requests.put(f"{self.base_url}/auth/profile", json=payload, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.log_test("authentication", "update_profile", True, 
+                            f"Profile updated: {data.get('name')}")
+                return True
+            else:
+                self.log_test("authentication", "update_profile", False, 
+                            f"HTTP {response.status_code}: {response.text[:200]}")
+                
+        except Exception as e:
+            self.log_test("authentication", "update_profile", False, f"Exception: {e}")
             
         return False
     
@@ -155,13 +219,13 @@ class ProcedimientosMXTester:
             
             if response.status_code == 200:
                 data = response.json()
-                if isinstance(data, list) and len(data) > 0:
+                if isinstance(data, list) and len(data) >= 6:  # Should have 6 services from seed
                     self.test_service_id = data[0].get("id")  # Store first service ID for later tests
                     self.log_test("services", "get_services", True, 
                                 f"Retrieved {len(data)} services. First service: {data[0].get('name')}")
                     return True
                 else:
-                    self.log_test("services", "get_services", False, "No services returned")
+                    self.log_test("services", "get_services", False, f"Expected 6+ services, got {len(data) if isinstance(data, list) else 'non-list'}")
             else:
                 self.log_test("services", "get_services", False, 
                             f"HTTP {response.status_code}: {response.text[:200]}")
@@ -171,112 +235,64 @@ class ProcedimientosMXTester:
             
         return False
     
-    def test_get_service_by_id(self):
-        """Test GET /services/{id} - Get specific service"""
-        if not self.test_service_id:
-            self.log_test("services", "get_service_by_id", False, "No service ID available")
-            return False
-            
+    def test_get_service_categories(self):
+        """Test GET /services/categories"""
         try:
-            response = requests.get(f"{self.base_url}/services/{self.test_service_id}", timeout=10)
+            response = requests.get(f"{self.base_url}/services/categories", timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
-                self.log_test("services", "get_service_by_id", True, 
-                            f"Service details: {data.get('name')} - ${data.get('price')} MXN")
-                return True
-            else:
-                self.log_test("services", "get_service_by_id", False, 
-                            f"HTTP {response.status_code}: {response.text[:200]}")
-                
-        except Exception as e:
-            self.log_test("services", "get_service_by_id", False, f"Exception: {e}")
-            
-        return False
-    
-    def test_get_categories(self):
-        """Test GET /categories - Get service categories"""
-        try:
-            response = requests.get(f"{self.base_url}/categories", timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if isinstance(data, list):
-                    self.log_test("services", "get_categories", True, 
-                                f"Retrieved categories: {', '.join(data)}")
+                if isinstance(data, list) and len(data) >= 4:  # Should have 4 categories
+                    categories = [cat.get('name') for cat in data]
+                    self.log_test("services", "get_service_categories", True, 
+                                f"Retrieved {len(data)} categories: {', '.join(categories)}")
                     return True
                 else:
-                    self.log_test("services", "get_categories", False, "Categories not in list format")
+                    self.log_test("services", "get_service_categories", False, f"Expected 4+ categories, got {len(data) if isinstance(data, list) else 'non-list'}")
             else:
-                self.log_test("services", "get_categories", False, 
+                self.log_test("services", "get_service_categories", False, 
                             f"HTTP {response.status_code}: {response.text[:200]}")
                 
         except Exception as e:
-            self.log_test("services", "get_categories", False, f"Exception: {e}")
+            self.log_test("services", "get_service_categories", False, f"Exception: {e}")
             
         return False
     
-    def test_admin_create_service(self):
-        """Test POST /services - Create service (admin only)"""
-        if not self.admin_token:
-            self.log_test("services", "admin_create_service", False, "No admin token available")
-            return False
-            
+    def test_get_service_by_slug(self):
+        """Test GET /services/historial-laboral-imss - Get service by slug"""
         try:
-            headers = {"Authorization": f"Bearer {self.admin_token}"}
-            payload = {
-                "name": "Test Service API",
-                "slug": "test-service-api",
-                "category": "Testing",
-                "short_description": "Service created via API testing",
-                "full_description": "This is a test service created during automated API testing to verify the POST /services endpoint functionality.",
-                "price": 199.00,
-                "delivery_time": "1-2 horas",
-                "required_fields": ["full_name", "email", "phone"],
-                "requirements": ["Valid email", "Phone number"],
-                "notes": ["This is a test service"],
-                "is_active": True
-            }
-            
-            response = requests.post(f"{self.base_url}/services", json=payload, headers=headers, timeout=10)
+            response = requests.get(f"{self.base_url}/services/historial-laboral-imss", timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
-                self.log_test("services", "admin_create_service", True, 
-                            f"Service created: {data.get('name')} (ID: {data.get('id')})")
+                self.log_test("services", "get_service_by_slug", True, 
+                            f"Service by slug: {data.get('name')} - ${data.get('price')} MXN")
                 return True
             else:
-                self.log_test("services", "admin_create_service", False, 
+                self.log_test("services", "get_service_by_slug", False, 
                             f"HTTP {response.status_code}: {response.text[:200]}")
                 
         except Exception as e:
-            self.log_test("services", "admin_create_service", False, f"Exception: {e}")
+            self.log_test("services", "get_service_by_slug", False, f"Exception: {e}")
             
         return False
     
     # ==================== ORDERS TESTS ====================
     
     def test_create_order(self):
-        """Test POST /orders - Create order with submitted_data"""
-        if not self.test_service_id:
-            self.log_test("orders", "create_order", False, "No service ID available")
+        """Test POST /orders - Create order with demo user (should deduct from balance)"""
+        if not self.demo_user_token or not self.test_service_id:
+            self.log_test("orders", "create_order", False, "No demo user token or service ID available")
             return False
             
         try:
-            headers = {}
-            if self.client_token:
-                headers["Authorization"] = f"Bearer {self.client_token}"
-                
+            headers = {"Authorization": f"Bearer {self.demo_user_token}"}
             payload = {
                 "service_id": self.test_service_id,
-                "submitted_data": {
-                    "full_name": "Juan Carlos Pérez López",
-                    "curp": "PELJ850315HDFRMN09",
-                    "nss": "12345678901",
-                    "rfc": "PELJ850315ABC",
-                    "email": "juan.perez@email.com",
-                    "phone": "+52 55 9876 5432",
-                    "additional_notes": "Solicito el trámite con urgencia"
+                "input_data": {
+                    "name": "Carlos Mendoza Ruiz", 
+                    "curp": "MERC850315HDFNRL09", 
+                    "email": "carlos.mendoza@test.com"
                 }
             }
             
@@ -286,7 +302,7 @@ class ProcedimientosMXTester:
                 data = response.json()
                 self.test_order_id = data.get("id")
                 self.log_test("orders", "create_order", True, 
-                            f"Order created: {data.get('order_number')} (ID: {self.test_order_id})")
+                            f"Order created: {data.get('order_number')} - Amount: ${data.get('amount')} (ID: {self.test_order_id})")
                 return True
             else:
                 self.log_test("orders", "create_order", False, 
@@ -297,44 +313,41 @@ class ProcedimientosMXTester:
             
         return False
     
-    def test_get_orders(self):
+    def test_get_user_orders(self):
         """Test GET /orders - List user's orders"""
-        if not self.client_token:
-            self.log_test("orders", "get_orders", False, "No client token available")
+        if not self.demo_user_token:
+            self.log_test("orders", "get_user_orders", False, "No demo user token available")
             return False
             
         try:
-            headers = {"Authorization": f"Bearer {self.client_token}"}
+            headers = {"Authorization": f"Bearer {self.demo_user_token}"}
             response = requests.get(f"{self.base_url}/orders", headers=headers, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
                 if isinstance(data, list):
-                    self.log_test("orders", "get_orders", True, 
-                                f"Retrieved {len(data)} orders for user")
+                    self.log_test("orders", "get_user_orders", True, 
+                                f"Retrieved {len(data)} orders for demo user")
                     return True
                 else:
-                    self.log_test("orders", "get_orders", False, "Orders not in list format")
+                    self.log_test("orders", "get_user_orders", False, "Orders not in list format")
             else:
-                self.log_test("orders", "get_orders", False, 
+                self.log_test("orders", "get_user_orders", False, 
                             f"HTTP {response.status_code}: {response.text[:200]}")
                 
         except Exception as e:
-            self.log_test("orders", "get_orders", False, f"Exception: {e}")
+            self.log_test("orders", "get_user_orders", False, f"Exception: {e}")
             
         return False
     
     def test_get_order_by_id(self):
-        """Test GET /orders/{id} - Get specific order"""
-        if not self.test_order_id:
-            self.log_test("orders", "get_order_by_id", False, "No order ID available")
+        """Test GET /orders/{order_id} - Get specific order"""
+        if not self.test_order_id or not self.demo_user_token:
+            self.log_test("orders", "get_order_by_id", False, "No order ID or demo user token available")
             return False
             
         try:
-            headers = {}
-            if self.client_token:
-                headers["Authorization"] = f"Bearer {self.client_token}"
-                
+            headers = {"Authorization": f"Bearer {self.demo_user_token}"}
             response = requests.get(f"{self.base_url}/orders/{self.test_order_id}", headers=headers, timeout=10)
             
             if response.status_code == 200:
@@ -352,7 +365,7 @@ class ProcedimientosMXTester:
         return False
     
     def test_update_order_status_admin(self):
-        """Test PUT /orders/{id}/status - Update order status (admin only)"""
+        """Test PUT /orders/{order_id}/status - Update order status (admin only)"""
         if not self.admin_token or not self.test_order_id:
             self.log_test("orders", "update_order_status_admin", False, 
                         "No admin token or order ID available")
@@ -361,8 +374,8 @@ class ProcedimientosMXTester:
         try:
             headers = {"Authorization": f"Bearer {self.admin_token}"}
             payload = {
-                "status": "under_review",
-                "admin_notes": "Order received and under review by admin team"
+                "status": "processing",
+                "admin_notes": "Order reviewed by admin team and approved for processing"
             }
             
             response = requests.put(f"{self.base_url}/orders/{self.test_order_id}/status", 
@@ -370,7 +383,7 @@ class ProcedimientosMXTester:
             
             if response.status_code == 200:
                 self.log_test("orders", "update_order_status_admin", True, 
-                            "Order status updated to 'under_review'")
+                            "Order status updated to 'processing'")
                 return True
             else:
                 self.log_test("orders", "update_order_status_admin", False, 
@@ -381,175 +394,97 @@ class ProcedimientosMXTester:
             
         return False
     
-    # ==================== PAYMENTS TESTS ====================
+    # ==================== TRANSACTIONS TESTS ====================
     
-    def test_create_payment(self):
-        """Test POST /payments - Create payment record"""
-        if not self.test_order_id:
-            self.log_test("payments", "create_payment", False, "No order ID available")
+    def test_get_transactions(self):
+        """Test GET /transactions - Get user's transaction history"""
+        if not self.demo_user_token:
+            self.log_test("transactions", "get_transactions", False, "No demo user token available")
             return False
             
         try:
-            headers = {}
-            if self.client_token:
-                headers["Authorization"] = f"Bearer {self.client_token}"
-                
-            # Create a simple base64 receipt image (1x1 pixel PNG)
-            receipt_data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
-            
-            payload = {
-                "order_id": self.test_order_id,
-                "method": "bank_transfer",
-                "reference": f"TRANS{int(time.time())}",
-                "receipt_data": receipt_data
-            }
-            
-            response = requests.post(f"{self.base_url}/payments", json=payload, headers=headers, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                self.test_payment_id = data.get("id")
-                self.log_test("payments", "create_payment", True, 
-                            f"Payment created: {data.get('method')} - Ref: {data.get('reference')}")
-                return True
-            else:
-                self.log_test("payments", "create_payment", False, 
-                            f"HTTP {response.status_code}: {response.text[:200]}")
-                
-        except Exception as e:
-            self.log_test("payments", "create_payment", False, f"Exception: {e}")
-            
-        return False
-    
-    def test_get_payment(self):
-        """Test GET /payments/{order_id} - Get payment for order"""
-        if not self.test_order_id:
-            self.log_test("payments", "get_payment", False, "No order ID available")
-            return False
-            
-        try:
-            headers = {}
-            if self.client_token:
-                headers["Authorization"] = f"Bearer {self.client_token}"
-                
-            response = requests.get(f"{self.base_url}/payments/{self.test_order_id}", headers=headers, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data:  # Payment exists
-                    self.log_test("payments", "get_payment", True, 
-                                f"Payment found: {data.get('method')} - Status: {data.get('status')}")
-                else:  # Payment is null/None
-                    self.log_test("payments", "get_payment", True, "No payment found for order (expected)")
-                return True
-            else:
-                self.log_test("payments", "get_payment", False, 
-                            f"HTTP {response.status_code}: {response.text[:200]}")
-                
-        except Exception as e:
-            self.log_test("payments", "get_payment", False, f"Exception: {e}")
-            
-        return False
-    
-    def test_confirm_payment_admin(self):
-        """Test PUT /payments/{id}/confirm - Confirm payment (admin only)"""
-        if not self.admin_token or not self.test_payment_id:
-            self.log_test("payments", "confirm_payment_admin", False, 
-                        "No admin token or payment ID available")
-            return False
-            
-        try:
-            headers = {"Authorization": f"Bearer {self.admin_token}"}
-            response = requests.put(f"{self.base_url}/payments/{self.test_payment_id}/confirm", 
-                                  headers=headers, timeout=10)
-            
-            if response.status_code == 200:
-                self.log_test("payments", "confirm_payment_admin", True, 
-                            "Payment confirmed by admin")
-                return True
-            else:
-                self.log_test("payments", "confirm_payment_admin", False, 
-                            f"HTTP {response.status_code}: {response.text[:200]}")
-                
-        except Exception as e:
-            self.log_test("payments", "confirm_payment_admin", False, f"Exception: {e}")
-            
-        return False
-    
-    # ==================== DOCUMENTS TESTS ====================
-    
-    def test_upload_document_admin(self):
-        """Test POST /documents - Upload document (admin only, base64)"""
-        if not self.admin_token or not self.test_order_id:
-            self.log_test("documents", "upload_document_admin", False, 
-                        "No admin token or order ID available")
-            return False
-            
-        try:
-            headers = {"Authorization": f"Bearer {self.admin_token}"}
-            
-            # Create a simple base64 PDF document
-            pdf_content = "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>endobj xref 0 4 0000000000 65535 f 0000000009 00000 n 0000000058 00000 n 0000000115 00000 n trailer<</Size 4/Root 1 0 R>>startxref 186 %%EOF"
-            document_data = base64.b64encode(pdf_content.encode()).decode()
-            
-            payload = {
-                "order_id": self.test_order_id,
-                "file_name": "historial_laboral_imss.pdf",
-                "file_data": document_data
-            }
-            
-            response = requests.post(f"{self.base_url}/documents", json=payload, headers=headers, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                self.log_test("documents", "upload_document_admin", True, 
-                            f"Document uploaded: {data.get('file_name')} (ID: {data.get('id')})")
-                return True
-            else:
-                self.log_test("documents", "upload_document_admin", False, 
-                            f"HTTP {response.status_code}: {response.text[:200]}")
-                
-        except Exception as e:
-            self.log_test("documents", "upload_document_admin", False, f"Exception: {e}")
-            
-        return False
-    
-    def test_get_documents(self):
-        """Test GET /documents/{order_id} - Get documents for order"""
-        if not self.test_order_id:
-            self.log_test("documents", "get_documents", False, "No order ID available")
-            return False
-            
-        try:
-            headers = {}
-            if self.client_token:
-                headers["Authorization"] = f"Bearer {self.client_token}"
-                
-            response = requests.get(f"{self.base_url}/documents/{self.test_order_id}", headers=headers, timeout=10)
+            headers = {"Authorization": f"Bearer {self.demo_user_token}"}
+            response = requests.get(f"{self.base_url}/transactions", headers=headers, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
                 if isinstance(data, list):
-                    self.log_test("documents", "get_documents", True, 
-                                f"Retrieved {len(data)} documents for order")
+                    total_amount = sum(t.get('amount', 0) for t in data)
+                    self.log_test("transactions", "get_transactions", True, 
+                                f"Retrieved {len(data)} transactions, total amount: ${total_amount}")
                     return True
                 else:
-                    self.log_test("documents", "get_documents", False, "Documents not in list format")
+                    self.log_test("transactions", "get_transactions", False, "Transactions not in list format")
             else:
-                self.log_test("documents", "get_documents", False, 
+                self.log_test("transactions", "get_transactions", False, 
                             f"HTTP {response.status_code}: {response.text[:200]}")
                 
         except Exception as e:
-            self.log_test("documents", "get_documents", False, f"Exception: {e}")
+            self.log_test("transactions", "get_transactions", False, f"Exception: {e}")
+            
+        return False
+    
+    def test_create_deposit(self):
+        """Test POST /transactions/deposit - Recharge balance"""
+        if not self.demo_user_token:
+            self.log_test("transactions", "create_deposit", False, "No demo user token available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.demo_user_token}"}
+            payload = {
+                "type": "deposit",
+                "amount": 500.00
+            }
+            
+            response = requests.post(f"{self.base_url}/transactions/deposit", json=payload, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.log_test("transactions", "create_deposit", True, 
+                            f"Deposit successful: ${payload['amount']} - New balance: ${data.get('new_balance')}")
+                return True
+            else:
+                self.log_test("transactions", "create_deposit", False, 
+                            f"HTTP {response.status_code}: {response.text[:200]}")
+                
+        except Exception as e:
+            self.log_test("transactions", "create_deposit", False, f"Exception: {e}")
+            
+        return False
+    
+    # ==================== DASHBOARD TESTS ====================
+    
+    def test_user_dashboard_stats(self):
+        """Test GET /dashboard/stats - Get user dashboard stats"""
+        if not self.demo_user_token:
+            self.log_test("dashboard", "user_dashboard_stats", False, "No demo user token available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.demo_user_token}"}
+            response = requests.get(f"{self.base_url}/dashboard/stats", headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.log_test("dashboard", "user_dashboard_stats", True, 
+                            f"Dashboard stats - Balance: ${data.get('balance')}, Total orders: {data.get('total_orders')}, Recent activity items: {len(data.get('recent_activity', []))}")
+                return True
+            else:
+                self.log_test("dashboard", "user_dashboard_stats", False, 
+                            f"HTTP {response.status_code}: {response.text[:200]}")
+                
+        except Exception as e:
+            self.log_test("dashboard", "user_dashboard_stats", False, f"Exception: {e}")
             
         return False
     
     # ==================== ADMIN TESTS ====================
     
-    def test_admin_dashboard(self):
-        """Test GET /admin/dashboard - Dashboard stats (admin only)"""
+    def test_admin_dashboard_stats(self):
+        """Test GET /admin/dashboard - Get admin dashboard stats"""
         if not self.admin_token:
-            self.log_test("admin", "admin_dashboard", False, "No admin token available")
+            self.log_test("admin", "admin_dashboard_stats", False, "No admin token available")
             return False
             
         try:
@@ -558,71 +493,71 @@ class ProcedimientosMXTester:
             
             if response.status_code == 200:
                 data = response.json()
-                self.log_test("admin", "admin_dashboard", True, 
-                            f"Dashboard stats: {data.get('total_orders')} orders, {data.get('total_clients')} clients, ${data.get('total_revenue'):.2f} MXN revenue")
+                self.log_test("admin", "admin_dashboard_stats", True, 
+                            f"Admin dashboard - Users: {data.get('total_users')}, Orders: {data.get('total_orders')}, Revenue: ${data.get('total_revenue'):.2f}")
                 return True
             else:
-                self.log_test("admin", "admin_dashboard", False, 
+                self.log_test("admin", "admin_dashboard_stats", False, 
                             f"HTTP {response.status_code}: {response.text[:200]}")
                 
         except Exception as e:
-            self.log_test("admin", "admin_dashboard", False, f"Exception: {e}")
+            self.log_test("admin", "admin_dashboard_stats", False, f"Exception: {e}")
             
         return False
     
-    def test_admin_get_clients(self):
-        """Test GET /admin/clients - List all clients (admin only)"""
+    def test_admin_get_users(self):
+        """Test GET /admin/users - List all users"""
         if not self.admin_token:
-            self.log_test("admin", "admin_get_clients", False, "No admin token available")
+            self.log_test("admin", "admin_get_users", False, "No admin token available")
             return False
             
         try:
             headers = {"Authorization": f"Bearer {self.admin_token}"}
-            response = requests.get(f"{self.base_url}/admin/clients", headers=headers, timeout=10)
+            response = requests.get(f"{self.base_url}/admin/users", headers=headers, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
                 if isinstance(data, list):
-                    self.log_test("admin", "admin_get_clients", True, 
-                                f"Retrieved {len(data)} clients")
+                    user_roles = {}
+                    for user in data:
+                        role = user.get('role', 'unknown')
+                        user_roles[role] = user_roles.get(role, 0) + 1
+                    
+                    self.log_test("admin", "admin_get_users", True, 
+                                f"Retrieved {len(data)} users - Roles: {user_roles}")
                     return True
                 else:
-                    self.log_test("admin", "admin_get_clients", False, "Clients not in list format")
+                    self.log_test("admin", "admin_get_users", False, "Users not in list format")
             else:
-                self.log_test("admin", "admin_get_clients", False, 
+                self.log_test("admin", "admin_get_users", False, 
                             f"HTTP {response.status_code}: {response.text[:200]}")
                 
         except Exception as e:
-            self.log_test("admin", "admin_get_clients", False, f"Exception: {e}")
+            self.log_test("admin", "admin_get_users", False, f"Exception: {e}")
             
         return False
     
     def test_admin_get_all_orders(self):
-        """Test GET /admin/orders - List all orders with filters (admin only)"""
+        """Test GET /admin/orders - List all orders with user info"""
         if not self.admin_token:
             self.log_test("admin", "admin_get_all_orders", False, "No admin token available")
             return False
             
         try:
             headers = {"Authorization": f"Bearer {self.admin_token}"}
-            
-            # Test without filter
             response = requests.get(f"{self.base_url}/admin/orders", headers=headers, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
                 if isinstance(data, list):
-                    # Test with status filter
-                    filtered_response = requests.get(f"{self.base_url}/admin/orders?status=under_review", 
-                                                   headers=headers, timeout=10)
-                    if filtered_response.status_code == 200:
-                        filtered_data = filtered_response.json()
-                        self.log_test("admin", "admin_get_all_orders", True, 
-                                    f"Retrieved {len(data)} total orders, {len(filtered_data)} under review")
-                        return True
-                    else:
-                        self.log_test("admin", "admin_get_all_orders", False, 
-                                    f"Filter test failed: {filtered_response.status_code}")
+                    status_counts = {}
+                    for order in data:
+                        status = order.get('status', 'unknown')
+                        status_counts[status] = status_counts.get(status, 0) + 1
+                    
+                    self.log_test("admin", "admin_get_all_orders", True, 
+                                f"Retrieved {len(data)} orders - Status counts: {status_counts}")
+                    return True
                 else:
                     self.log_test("admin", "admin_get_all_orders", False, "Orders not in list format")
             else:
@@ -634,55 +569,111 @@ class ProcedimientosMXTester:
             
         return False
     
+    def test_admin_api_logs(self):
+        """Test GET /admin/api-logs - Get API activity logs"""
+        if not self.admin_token:
+            self.log_test("admin", "admin_api_logs", False, "No admin token available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = requests.get(f"{self.base_url}/admin/api-logs", headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list):
+                    self.log_test("admin", "admin_api_logs", True, 
+                                f"Retrieved {len(data)} API log entries")
+                    return True
+                else:
+                    self.log_test("admin", "admin_api_logs", False, "API logs not in list format")
+            else:
+                self.log_test("admin", "admin_api_logs", False, 
+                            f"HTTP {response.status_code}: {response.text[:200]}")
+                
+        except Exception as e:
+            self.log_test("admin", "admin_api_logs", False, f"Exception: {e}")
+            
+        return False
+    
+    def test_admin_get_settings(self):
+        """Test GET /admin/settings - Get platform settings"""
+        if not self.admin_token:
+            self.log_test("admin", "admin_get_settings", False, "No admin token available")
+            return False
+            
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = requests.get(f"{self.base_url}/admin/settings", headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list):
+                    settings_keys = [setting.get('key') for setting in data]
+                    self.log_test("admin", "admin_get_settings", True, 
+                                f"Retrieved {len(data)} settings: {', '.join(settings_keys)}")
+                    return True
+                else:
+                    self.log_test("admin", "admin_get_settings", False, "Settings not in list format")
+            else:
+                self.log_test("admin", "admin_get_settings", False, 
+                            f"HTTP {response.status_code}: {response.text[:200]}")
+                
+        except Exception as e:
+            self.log_test("admin", "admin_get_settings", False, f"Exception: {e}")
+            
+        return False
+    
     # ==================== MAIN TEST RUNNER ====================
     
     def run_all_tests(self):
         """Run all tests in proper sequence"""
         print("=" * 80)
-        print("🚀 STARTING PROCEDIMIENTOSMX BACKEND API TESTS")
+        print("🚀 STARTING TRAMITLY BACKEND API TESTS")
         print(f"📡 Base URL: {self.base_url}")
         print("=" * 80)
         
-        # Setup initial data
-        print("\n🔧 SETUP")
-        self.setup_test_data()
+        # Seed Data Tests
+        print("\n🌱 SEED DATA TESTS")
+        self.test_seed_data()
         
         # Authentication Tests
         print("\n🔐 AUTHENTICATION TESTS")
         self.test_admin_login()
+        self.test_demo_user_login()
         self.test_user_registration()
         self.test_get_current_user()
+        self.test_update_profile()
         
         # Services Tests
         print("\n🛍️ SERVICES TESTS")
         self.test_get_services()
-        self.test_get_service_by_id()
-        self.test_get_categories()
-        self.test_admin_create_service()
+        self.test_get_service_categories()
+        self.test_get_service_by_slug()
         
-        # Orders Tests
+        # Orders Tests (requires balance from demo user)
         print("\n📋 ORDERS TESTS")
         self.test_create_order()
-        self.test_get_orders()
+        self.test_get_user_orders()
         self.test_get_order_by_id()
         self.test_update_order_status_admin()
         
-        # Payments Tests
-        print("\n💳 PAYMENTS TESTS")
-        self.test_create_payment()
-        self.test_get_payment()
-        self.test_confirm_payment_admin()
+        # Transactions Tests
+        print("\n💳 TRANSACTIONS TESTS")
+        self.test_get_transactions()
+        self.test_create_deposit()
         
-        # Documents Tests
-        print("\n📄 DOCUMENTS TESTS")
-        self.test_upload_document_admin()
-        self.test_get_documents()
+        # Dashboard Tests
+        print("\n📊 DASHBOARD TESTS")
+        self.test_user_dashboard_stats()
         
         # Admin Tests
         print("\n👨‍💼 ADMIN TESTS")
-        self.test_admin_dashboard()
-        self.test_admin_get_clients()
+        self.test_admin_dashboard_stats()
+        self.test_admin_get_users()
         self.test_admin_get_all_orders()
+        self.test_admin_api_logs()
+        self.test_admin_get_settings()
         
         # Summary
         self.print_summary()
@@ -702,17 +693,17 @@ class ProcedimientosMXTester:
             category_total = len(tests)
             total_tests += category_total
             
-            print(f"\n📁 {category.upper()}")
-            for test_name, result in tests.items():
-                status = "✅" if result["success"] else "❌"
-                print(f"  {status} {test_name}")
-                if result["success"]:
-                    category_passed += 1
-                    passed_tests += 1
-                else:
-                    failed_tests.append(f"{category}.{test_name}: {result['message']}")
-            
             if category_total > 0:
+                print(f"\n📁 {category.upper()}")
+                for test_name, result in tests.items():
+                    status = "✅" if result["success"] else "❌"
+                    print(f"  {status} {test_name}: {result['message']}")
+                    if result["success"]:
+                        category_passed += 1
+                        passed_tests += 1
+                    else:
+                        failed_tests.append(f"{category}.{test_name}: {result['message']}")
+                
                 print(f"  📈 Category Score: {category_passed}/{category_total} ({(category_passed/category_total)*100:.1f}%)")
         
         print(f"\n🎯 OVERALL RESULTS")
@@ -730,5 +721,5 @@ class ProcedimientosMXTester:
         print("=" * 80)
 
 if __name__ == "__main__":
-    tester = ProcedimientosMXTester()
+    tester = TramitlyAPITester()
     tester.run_all_tests()

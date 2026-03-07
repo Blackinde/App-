@@ -1,34 +1,19 @@
 import { create } from 'zustand';
 import axios from 'axios';
+import { Service } from '@/src/types';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
-export interface Service {
-  id: string;
-  name: string;
-  slug: string;
-  category: string;
-  short_description: string;
-  full_description: string;
-  price: number;
-  delivery_time: string;
-  required_fields: string[];
-  requirements: string[];
-  notes: string[];
-  is_active: boolean;
-  created_at: string;
-}
-
 interface ServicesState {
   services: Service[];
-  categories: string[];
+  categories: { id: string; name: string; icon: string }[];
   selectedCategory: string | null;
   isLoading: boolean;
   error: string | null;
-  fetchServices: () => Promise<void>;
+  fetchServices: (category?: string) => Promise<void>;
   fetchCategories: () => Promise<void>;
+  getServiceBySlug: (slug: string) => Promise<Service | null>;
   setSelectedCategory: (category: string | null) => void;
-  getServiceById: (id: string) => Service | undefined;
 }
 
 export const useServicesStore = create<ServicesState>((set, get) => ({
@@ -38,12 +23,11 @@ export const useServicesStore = create<ServicesState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  fetchServices: async () => {
+  fetchServices: async (category?: string) => {
     set({ isLoading: true, error: null });
     try {
-      const { selectedCategory } = get();
-      const url = selectedCategory 
-        ? `${API_URL}/api/services?category=${encodeURIComponent(selectedCategory)}`
+      const url = category 
+        ? `${API_URL}/api/services?category=${encodeURIComponent(category)}`
         : `${API_URL}/api/services`;
       const response = await axios.get(url);
       set({ services: response.data, isLoading: false });
@@ -54,18 +38,23 @@ export const useServicesStore = create<ServicesState>((set, get) => ({
 
   fetchCategories: async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/categories`);
+      const response = await axios.get(`${API_URL}/api/services/categories`);
       set({ categories: response.data });
     } catch (error) {
       console.error('Error fetching categories:', error);
     }
   },
 
-  setSelectedCategory: (category) => {
-    set({ selectedCategory: category });
+  getServiceBySlug: async (slug: string) => {
+    try {
+      const response = await axios.get(`${API_URL}/api/services/${slug}`);
+      return response.data;
+    } catch (error) {
+      return null;
+    }
   },
 
-  getServiceById: (id) => {
-    return get().services.find(s => s.id === id);
+  setSelectedCategory: (category) => {
+    set({ selectedCategory: category });
   },
 }));

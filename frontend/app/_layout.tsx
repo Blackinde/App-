@@ -15,7 +15,7 @@ export default function RootLayout() {
   if (isLoading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ActivityIndicator size="large" color={colors.brand.primary} />
       </View>
     );
   }
@@ -25,20 +25,21 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.text,
-          headerTitleStyle: { fontWeight: '600' },
-          contentStyle: { backgroundColor: colors.background },
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.bg.primary },
           animation: 'slide_from_right',
         }}
       >
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)/login" options={{ title: 'Iniciar Sesión', presentation: 'modal' }} />
-        <Stack.Screen name="(auth)/register" options={{ title: 'Crear Cuenta', presentation: 'modal' }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="service/[id]" options={{ title: 'Detalle del Servicio' }} />
-        <Stack.Screen name="order/[id]" options={{ title: 'Detalle del Pedido' }} />
-        <Stack.Screen name="admin" options={{ headerShown: false }} />
+        <Stack.Screen name="index" />
+        <Stack.Screen name="servicios/index" />
+        <Stack.Screen name="servicios/[slug]" />
+        <Stack.Screen name="como-funciona" />
+        <Stack.Screen name="faq" />
+        <Stack.Screen name="contacto" />
+        <Stack.Screen name="login" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="register" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="dashboard" />
+        <Stack.Screen name="admin" />
       </Stack>
     </>
   );
@@ -47,7 +48,7 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   loading: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },

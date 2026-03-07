@@ -103,13 +103,17 @@
 #====================================================================================================
 
 user_problem_statement: |
-  Build a complete SaaS-style web application for selling digital procedures, 
-  document requests, and verification services to clients in Mexico.
-  Features: Landing page, Services catalog, Client dashboard, Admin panel,
-  Order management, Payment system (bank transfer), Document delivery.
+  TRAMITLY - Plataforma SaaS de Trámites Digitales en México
+  Nueva arquitectura completa con:
+  - Backend FastAPI reescrito con modelos Tramitly (User, Service, Order, Transaction)
+  - Sistema de wallet/balance para usuarios
+  - Dashboard de usuario con estadísticas y actividad reciente
+  - Panel de administración completo
+  - Autenticación JWT
+  - Datos mock realistas seeded en MongoDB
 
 backend:
-  - task: "User Authentication (Register/Login)"
+  - task: "Tramitly Auth API (Register/Login)"
     implemented: true
     working: true
     file: "server.py"
@@ -119,12 +123,12 @@ backend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Implemented JWT auth with register/login endpoints"
+        comment: "Backend completamente reescrito para Tramitly. Auth endpoints: POST /api/auth/register, POST /api/auth/login, GET /api/auth/me, PUT /api/auth/profile. Credenciales: admin@tramitly.mx/Admin123!, demo@tramitly.mx/Demo123!"
       - working: true
         agent: "testing"
-        comment: "All auth endpoints tested successfully: admin login with admin@procedimientos.mx, user registration, and JWT token validation via GET /auth/me. Admin role properly assigned and client registration works correctly."
+        comment: "✅ PASS - All authentication endpoints working correctly. Admin login (admin@tramitly.mx/Admin123!) returns role=admin. Demo user login (demo@tramitly.mx/Demo123!) returns role=user with balance=$1500. User registration creates new users with role=user. GET /auth/me and PUT /auth/profile working with Bearer tokens."
 
-  - task: "Services CRUD API"
+  - task: "Tramitly Services API"
     implemented: true
     working: true
     file: "server.py"
@@ -134,12 +138,12 @@ backend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "GET/POST/PUT/DELETE services endpoints with categories"
+        comment: "GET /api/services, GET /api/services/categories, GET /api/services/{slug_or_id}, POST/PUT/DELETE con admin"
       - working: true
         agent: "testing"
-        comment: "All services endpoints working: GET /services returned 6 seeded services, GET /services/{id} returns detailed service info, GET /categories returns 4 categories (Créditos, Fiscal, Identidad, Seguridad Social), and POST /services (admin-only) successfully creates new services."
+        comment: "✅ PASS - Services API fully functional. GET /services returns 6 services from seed data. GET /services/categories returns 4 categories (Seguridad Social, Identidad, Fiscal, Créditos). GET /services/historial-laboral-imss retrieves service by slug correctly."
 
-  - task: "Orders API"
+  - task: "Tramitly Orders API"
     implemented: true
     working: true
     file: "server.py"
@@ -149,12 +153,12 @@ backend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Order creation, tracking, status updates"
+        comment: "POST /api/orders (descuenta del balance), GET /api/orders, GET /api/orders/{id}, PUT /api/orders/{id}/status"
       - working: true
         agent: "testing"
-        comment: "All order endpoints functioning properly: POST /orders creates orders with submitted_data, GET /orders lists user orders, GET /orders/{id} retrieves specific order details, PUT /orders/{id}/status (admin-only) successfully updates order status to 'under_review' with admin notes."
+        comment: "✅ PASS - Orders API working correctly. POST /orders creates orders and deducts from user balance. GET /orders lists user orders. GET /orders/{id} retrieves specific order. PUT /orders/{id}/status (admin) updates order status. Balance deduction and transaction recording working properly."
 
-  - task: "Payments API"
+  - task: "Tramitly Transactions API"
     implemented: true
     working: true
     file: "server.py"
@@ -164,12 +168,12 @@ backend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Payment creation and confirmation for bank transfers"
+        comment: "GET /api/transactions, POST /api/transactions/deposit (recarga de saldo)"
       - working: true
         agent: "testing"
-        comment: "Payment system fully operational: POST /payments creates bank transfer payment records with receipt data, GET /payments/{order_id} retrieves payment info, PUT /payments/{id}/confirm (admin-only) confirms payments and updates order status to 'processing'."
+        comment: "✅ PASS - Transactions API fully functional. GET /transactions returns user transaction history with correct amounts. POST /transactions/deposit successfully recharges user balance ($500 added, new balance $1601). Auto-approved deposits working correctly."
 
-  - task: "Documents API"
+  - task: "Tramitly User Dashboard API"
     implemented: true
     working: true
     file: "server.py"
@@ -179,12 +183,12 @@ backend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Document upload (base64) and retrieval per order"
+        comment: "GET /api/dashboard/stats - retorna balance, órdenes por estado, actividad reciente"
       - working: true
         agent: "testing"
-        comment: "Document management working correctly: POST /documents (admin-only) uploads base64 encoded documents to orders, GET /documents/{order_id} retrieves all documents for specific order with proper access control."
+        comment: "✅ PASS - User Dashboard API working correctly. GET /dashboard/stats returns accurate user statistics: balance, order counts by status, and recent activity (orders + transactions). Real-time balance updates reflected correctly."
 
-  - task: "Admin Dashboard API"
+  - task: "Tramitly Admin API"
     implemented: true
     working: true
     file: "server.py"
@@ -194,143 +198,192 @@ backend:
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Dashboard stats, client list, all orders"
+        comment: "GET /api/admin/dashboard, GET /api/admin/users, GET /api/admin/orders, GET /api/admin/api-logs, GET/PUT /api/admin/settings"
       - working: true
         agent: "testing"
-        comment: "All admin endpoints functioning: GET /admin/dashboard returns comprehensive stats (orders, clients, revenue), GET /admin/clients lists all client users, GET /admin/orders returns all orders with optional status filtering. Revenue calculation and recent orders display work correctly."
+        comment: "✅ PASS - Admin API fully functional. GET /admin/dashboard returns comprehensive stats (users, orders, revenue). GET /admin/users lists all users with roles. GET /admin/orders shows all orders with user info and status counts. GET /admin/api-logs returns API activity. GET /admin/settings returns 5 platform settings. All admin endpoints require proper authentication."
 
-  - task: "Seed Data API"
+  - task: "Tramitly Seed Data"
     implemented: true
     working: true
     file: "server.py"
     stuck_count: 0
-    priority: "medium"
+    priority: "high"
     needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Creates 6 demo services and admin user"
+        comment: "POST /api/seed - Crea 6 servicios, admin, usuario demo con balance $1500, órdenes demo, transacciones demo, y settings"
       - working: true
         agent: "testing"
-        comment: "Seed endpoint works perfectly: POST /api/seed creates 6 demo services (IMSS historial, semanas cotizadas, CURP verification, NSS verification, constancia fiscal, INFONAVIT eligibility) and admin user with correct credentials."
+        comment: "✅ PASS - POST /api/seed working correctly. Creates 6 services, admin user (admin@tramitly.mx), demo user (demo@tramitly.mx) with $1500 balance, demo orders and transactions. All seed data properly initialized."
 
 frontend:
-  - task: "Landing Page"
+  - task: "Landing Page Tramitly"
     implemented: true
     working: "NA"
     file: "app/index.tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Hero, features, how it works, services preview, FAQ, CTA"
+        comment: "Landing completa con Hero, beneficios, servicios, proceso, FAQ, CTA. Diseño oscuro con acentos cyan."
+
+  - task: "Login Page"
+    implemented: true
+    working: "NA"
+    file: "app/login.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Login funcional con validación, muestra credenciales demo"
+
+  - task: "Register Page"
+    implemented: false
+    working: "NA"
+    file: "app/register.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Por implementar - formulario de registro"
 
   - task: "Services Catalog"
-    implemented: true
+    implemented: false
     working: "NA"
-    file: "app/(tabs)/services.tsx"
+    file: "app/servicios/index.tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Category filters, service cards with prices in MXN"
+        comment: "Por implementar - catálogo con filtros por categoría"
 
-  - task: "Service Detail Page"
-    implemented: true
+  - task: "Service Detail"
+    implemented: false
     working: "NA"
-    file: "app/service/[id].tsx"
+    file: "app/servicios/[slug].tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Full description, requirements, request form"
+        comment: "Por implementar - detalle con formulario de solicitud"
 
-  - task: "Auth Screens"
-    implemented: true
+  - task: "User Dashboard"
+    implemented: false
     working: "NA"
-    file: "app/(auth)/*.tsx"
+    file: "app/dashboard/index.tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Login and Register screens with JWT"
+        comment: "Por implementar - KPIs, balance, órdenes recientes"
 
-  - task: "Client Orders Page"
-    implemented: true
+  - task: "User Orders Page"
+    implemented: false
     working: "NA"
-    file: "app/(tabs)/orders.tsx"
+    file: "app/dashboard/pedidos.tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Order list with status badges, pull to refresh"
+        comment: "Por implementar - lista de pedidos con StatusBadge"
 
-  - task: "Order Detail Page"
-    implemented: true
+  - task: "User Balance Page"
+    implemented: false
     working: "NA"
-    file: "app/order/[id].tsx"
+    file: "app/dashboard/saldo.tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Order tracking, payment info, document downloads"
+        comment: "Por implementar - historial de transacciones, recarga"
+
+  - task: "User Profile Page"
+    implemented: false
+    working: "NA"
+    file: "app/dashboard/perfil.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Por implementar - datos del usuario, edición"
 
   - task: "Admin Dashboard"
-    implemented: true
+    implemented: false
     working: "NA"
     file: "app/admin/index.tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Stats cards, quick actions, recent orders"
+        comment: "Por implementar - KPIs, órdenes recientes, usuarios recientes"
 
   - task: "Admin Orders Management"
-    implemented: true
+    implemented: false
     working: "NA"
-    file: "app/admin/orders.tsx"
+    file: "app/admin/ordenes.tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Order list with filters, status updates"
+        comment: "Por implementar - tabla de órdenes, actualización de estado"
 
   - task: "Admin Services Management"
-    implemented: true
+    implemented: false
     working: "NA"
-    file: "app/admin/services.tsx"
+    file: "app/admin/servicios.tsx"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "CRUD for services with modal form"
+        comment: "Por implementar - CRUD de servicios"
+
+  - task: "Admin Users Management"
+    implemented: false
+    working: "NA"
+    file: "app/admin/usuarios.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Por implementar - lista de usuarios"
 
 metadata:
   created_by: "main_agent"
-  version: "1.0"
-  test_sequence: 2
+  version: "2.0"
+  test_sequence: 4
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "All backend tasks completed and verified"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -338,31 +391,58 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: |
-      Initial implementation complete. Please test all backend APIs:
-      1. Auth: POST /api/auth/register, POST /api/auth/login, GET /api/auth/me
-      2. Services: GET /api/services, GET /api/services/{id}, POST/PUT/DELETE with admin token
-      3. Orders: POST /api/orders, GET /api/orders, GET /api/orders/{id}, PUT /api/orders/{id}/status
-      4. Payments: POST /api/payments, PUT /api/payments/{id}/confirm
-      5. Documents: POST /api/documents, GET /api/documents/{order_id}
-      6. Admin: GET /api/admin/dashboard, GET /api/admin/clients, GET /api/admin/orders
+      Backend Tramitly completamente reescrito. Por favor probar TODOS los endpoints:
       
-      Admin credentials: admin@procedimientos.mx / Admin123!
-      Database is already seeded with 6 services.
-
+      1. SEED: POST /api/seed (crear datos mock - ejecutar primero si DB está vacía)
+      2. AUTH:
+         - POST /api/auth/login con admin@tramitly.mx / Admin123!
+         - POST /api/auth/login con demo@tramitly.mx / Demo123!
+         - POST /api/auth/register con nuevo usuario
+         - GET /api/auth/me (con token)
+         - PUT /api/auth/profile (con token)
+      3. SERVICES:
+         - GET /api/services (lista todos)
+         - GET /api/services/categories
+         - GET /api/services/{slug} (ej: historial-laboral-imss)
+      4. ORDERS:
+         - POST /api/orders (como usuario demo con balance)
+         - GET /api/orders (mis órdenes)
+         - GET /api/orders/{id}
+         - PUT /api/orders/{id}/status (como admin)
+      5. TRANSACTIONS:
+         - GET /api/transactions (historial de usuario)
+         - POST /api/transactions/deposit (recarga de saldo)
+      6. USER DASHBOARD:
+         - GET /api/dashboard/stats
+      7. ADMIN:
+         - GET /api/admin/dashboard
+         - GET /api/admin/users
+         - GET /api/admin/orders
+         - GET /api/admin/api-logs
+         - GET /api/admin/settings
+      
+      Credenciales activas:
+      - Admin: admin@tramitly.mx / Admin123!
+      - Demo User: demo@tramitly.mx / Demo123! (con $1500 de balance)
+  
   - agent: "testing"
     message: |
-      ✅ BACKEND TESTING COMPLETE - ALL APIS WORKING PERFECTLY
+      ✅ BACKEND TESTING COMPLETED - 100% SUCCESS RATE (21/21 tests passed)
       
-      Comprehensive testing completed with 100% success rate (19/19 tests passed):
+      Comprehensive testing results:
+      🌱 SEED DATA: ✅ POST /api/seed creates 6 services, admin user, demo user with $1500 balance
+      🔐 AUTHENTICATION: ✅ All auth endpoints working (login, register, profile, current user)
+      🛍️ SERVICES: ✅ Service listing, categories, and slug-based retrieval working
+      📋 ORDERS: ✅ Order creation with balance deduction, listing, retrieval, admin status updates working
+      💳 TRANSACTIONS: ✅ Transaction history and deposit functionality working
+      📊 DASHBOARD: ✅ User dashboard stats with real-time data working
+      👨‍💼 ADMIN: ✅ All admin endpoints working (dashboard, users, orders, logs, settings)
       
-      🔐 AUTHENTICATION: All endpoints working (admin login, user registration, JWT validation)
-      🛍️ SERVICES: Full CRUD operations tested (GET, POST, categories, admin-only operations)
-      📋 ORDERS: Complete order lifecycle verified (creation, listing, status updates)
-      💳 PAYMENTS: Payment system fully functional (creation, confirmation, bank transfers)
-      📄 DOCUMENTS: Document upload/retrieval working (base64 encoding, access control)
-      👨‍💼 ADMIN: All admin endpoints operational (dashboard, clients, order management)
+      Key verified functionality:
+      - User balance system: Deducts from balance on order creation, adds on deposit
+      - Authentication: JWT tokens working for both admin and user roles
+      - Data consistency: All CRUD operations maintaining data integrity
+      - Admin controls: Proper role-based access for admin functions
+      - Transaction logging: All financial activities properly recorded
       
-      Test URL: https://procedimientos-api.preview.emergentagent.com/api
-      Admin credentials verified: admin@procedimientos.mx / Admin123!
-      
-      The backend is production-ready. All APIs handle authentication, authorization, data validation, and error responses correctly. The system supports the complete business flow from service browsing to order completion with payment and document delivery.
+      All critical backend functionality is operational and ready for production use.

@@ -3,17 +3,17 @@ import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Ale
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '@/src/utils/theme';
+import { Header } from '@/src/components/layout/Header';
+import { Button, Input } from '@/src/components/ui';
 import { useAuthStore } from '@/src/store/authStore';
-import { Button } from '@/src/components/Button';
-import { Input } from '@/src/components/Input';
+import { APP_NAME } from '@/src/constants';
 
-export default function RegisterScreen() {
+export default function RegisterPage() {
   const router = useRouter();
   const { register } = useAuthStore();
   
-  const [fullName, setFullName] = useState('');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,7 +21,7 @@ export default function RegisterScreen() {
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!fullName) newErrors.fullName = 'El nombre es requerido';
+    if (!name) newErrors.name = 'El nombre es requerido';
     if (!email) newErrors.email = 'El correo es requerido';
     else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = 'Correo inválido';
     if (!password) newErrors.password = 'La contraseña es requerida';
@@ -36,10 +36,8 @@ export default function RegisterScreen() {
     
     setLoading(true);
     try {
-      await register({ full_name: fullName, email, phone: phone || undefined, password });
-      Alert.alert('Éxito', 'Cuenta creada correctamente', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)/services') }
-      ]);
+      await register({ name, email, password });
+      router.replace('/dashboard');
     } catch (error: any) {
       Alert.alert('Error', error.message);
     } finally {
@@ -49,23 +47,24 @@ export default function RegisterScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <Header showBack showAuth={false} />
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <View style={styles.iconContainer}>
-            <Ionicons name="person-add" size={40} color={colors.primary} />
+            <Ionicons name="person-add" size={40} color={colors.text.inverse} />
           </View>
           <Text style={styles.title}>Crear Cuenta</Text>
-          <Text style={styles.subtitle}>Regístrate para comenzar a usar nuestros servicios</Text>
+          <Text style={styles.subtitle}>Regístrate para comenzar a usar {APP_NAME}</Text>
         </View>
 
         <View style={styles.form}>
           <Input
             label="Nombre Completo"
-            value={fullName}
-            onChangeText={setFullName}
-            placeholder="Juan Pérez"
+            value={name}
+            onChangeText={setName}
+            placeholder="Tu nombre"
             icon="person-outline"
-            error={errors.fullName}
+            error={errors.name}
           />
           <Input
             label="Correo Electrónico"
@@ -76,14 +75,6 @@ export default function RegisterScreen() {
             keyboardType="email-address"
             autoCapitalize="none"
             error={errors.email}
-          />
-          <Input
-            label="Teléfono (opcional)"
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="+52 55 1234 5678"
-            icon="call-outline"
-            keyboardType="phone-pad"
           />
           <Input
             label="Contraseña"
@@ -103,12 +94,12 @@ export default function RegisterScreen() {
             secureTextEntry
             error={errors.confirmPassword}
           />
-          <Button title="Crear Cuenta" onPress={handleRegister} loading={loading} size="large" />
+          <Button title="Crear Cuenta" onPress={handleRegister} loading={loading} size="lg" fullWidth />
         </View>
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>¿Ya tienes una cuenta?</Text>
-          <Button title="Iniciar sesión" onPress={() => router.push('/(auth)/login')} variant="ghost" />
+          <Button title="Iniciar sesión" onPress={() => router.push('/login')} variant="ghost" />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -118,34 +109,35 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg.primary,
   },
-  scrollContent: {
+  content: {
     flexGrow: 1,
     padding: spacing.lg,
   },
   header: {
     alignItems: 'center',
     marginBottom: spacing.xl,
+    marginTop: spacing.lg,
   },
   iconContainer: {
     width: 80,
     height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(0, 217, 255, 0.1)',
+    borderRadius: borderRadius.xl,
+    backgroundColor: colors.brand.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
   title: {
-    fontSize: fontSize.xxl,
+    fontSize: fontSize['2xl'],
     fontWeight: fontWeight.bold,
-    color: colors.text,
+    color: colors.text.primary,
     marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: fontSize.md,
-    color: colors.textSecondary,
+    fontSize: fontSize.base,
+    color: colors.text.secondary,
     textAlign: 'center',
   },
   form: {
@@ -158,7 +150,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   footerText: {
-    fontSize: fontSize.md,
-    color: colors.textSecondary,
+    fontSize: fontSize.base,
+    color: colors.text.secondary,
   },
 });

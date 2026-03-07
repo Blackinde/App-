@@ -3,195 +3,172 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, spacing, borderRadius, fontSize, fontWeight } from '@/src/utils/theme';
-import { Button } from '@/src/components/Button';
-import { useAuthStore } from '@/src/store/authStore';
-import { useServicesStore, Service } from '@/src/store/servicesStore';
+import { colors, spacing, borderRadius, fontSize, fontWeight, shadows } from '@/src/utils/theme';
+import { Header } from '@/src/components/layout/Header';
+import { Footer } from '@/src/components/layout/Footer';
+import { Button, ServiceCard } from '@/src/components/ui';
+import { useServicesStore } from '@/src/store/servicesStore';
+import { APP_NAME, APP_TAGLINE, SERVICE_CATEGORIES } from '@/src/constants';
+import { formatCurrency } from '@/src/utils/formatters';
 
 const { width } = Dimensions.get('window');
 
 export default function LandingPage() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isAuthenticated, user } = useAuthStore();
-  const { services, fetchServices, fetchCategories, categories } = useServicesStore();
+  const { services, fetchServices, fetchCategories } = useServicesStore();
 
   useEffect(() => {
     fetchServices();
     fetchCategories();
   }, []);
 
-  const handleGetStarted = () => {
-    router.push('/(tabs)/services');
-  };
-
-  const handleLogin = () => {
-    if (isAuthenticated) {
-      if (user?.role === 'admin') {
-        router.push('/admin');
-      } else {
-        router.push('/(tabs)/orders');
-      }
-    } else {
-      router.push('/(auth)/login');
-    }
-  };
-
-  const features = [
-    { icon: 'shield-checkmark', title: 'Seguro y Confiable', desc: 'Tus datos protegidos con encriptación' },
-    { icon: 'flash', title: 'Rápido', desc: 'Entrega en 24-72 horas' },
-    { icon: 'document-text', title: 'Documentos Oficiales', desc: 'Válidos para cualquier trámite' },
-    { icon: 'headset', title: 'Soporte 24/7', desc: 'Asistencia cuando la necesites' },
+  const benefits = [
+    { icon: 'flash', title: 'Rápido', desc: 'Resultados en minutos, no en días' },
+    { icon: 'shield-checkmark', title: 'Seguro', desc: 'Datos protegidos con encriptación' },
+    { icon: 'document-text', title: 'Oficial', desc: 'Documentos válidos para cualquier trámite' },
+    { icon: 'wallet', title: 'Transparente', desc: 'Precios claros, sin sorpresas' },
   ];
 
   const steps = [
-    { number: '1', title: 'Elige tu servicio', desc: 'Selecciona el trámite que necesitas' },
-    { number: '2', title: 'Ingresa tus datos', desc: 'Completa el formulario de solicitud' },
-    { number: '3', title: 'Realiza el pago', desc: 'Pago seguro por transferencia' },
-    { number: '4', title: 'Recibe tu documento', desc: 'Descarga tu documento digital' },
+    { num: '01', title: 'Elige tu trámite', desc: 'Selecciona el servicio que necesitas de nuestro catálogo' },
+    { num: '02', title: 'Ingresa tus datos', desc: 'Completa el formulario con la información requerida' },
+    { num: '03', title: 'Recibe tu resultado', desc: 'Obtén tu documento digital en minutos u horas' },
   ];
 
   const faqs = [
-    { q: '¿Cuánto tiempo tarda la entrega?', a: 'Dependiendo del servicio, entre 1 y 72 horas hábiles.' },
-    { q: '¿Los documentos son oficiales?', a: 'Sí, todos los documentos provienen de fuentes oficiales del gobierno.' },
-    { q: '¿Cómo realizo el pago?', a: 'Aceptamos transferencia bancaria. Próximamente más métodos.' },
-    { q: '¿Mis datos están seguros?', a: 'Utilizamos encriptación de grado bancario para proteger tu información.' },
+    { q: '¿Cuánto tiempo tarda la entrega?', a: 'Dependiendo del servicio, entre 1 y 72 horas hábiles. Algunos servicios son instantáneos.' },
+    { q: '¿Los documentos son oficiales?', a: 'Sí, todos los documentos provienen de consultas directas a fuentes oficiales del gobierno.' },
+    { q: '¿Cómo pago?', a: 'Recarga saldo en tu cuenta y paga directamente desde tu wallet. Próximamente más métodos.' },
+    { q: '¿Mis datos están seguros?', a: 'Utilizamos encriptación y no almacenamos datos sensibles más allá de lo necesario.' },
+  ];
+
+  const trust = [
+    { icon: 'checkmark-circle', text: 'Verificación en tiempo real' },
+    { icon: 'lock-closed', text: 'Datos encriptados' },
+    { icon: 'time', text: 'Soporte 24/7' },
+    { icon: 'ribbon', text: 'Garantía de satisfacción' },
   ];
 
   return (
-    <ScrollView style={[styles.container, { paddingTop: insets.top }]} showsVerticalScrollIndicator={false}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.logo}>
-          <Ionicons name="document-text" size={28} color={colors.primary} />
-          <Text style={styles.logoText}>Procedimientos<Text style={styles.logoAccent}>MX</Text></Text>
-        </View>
-        <TouchableOpacity style={styles.loginBtn} onPress={handleLogin}>
-          <Ionicons name={isAuthenticated ? 'person' : 'log-in-outline'} size={20} color={colors.primary} />
-          <Text style={styles.loginText}>{isAuthenticated ? 'Mi Cuenta' : 'Ingresar'}</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Hero Section */}
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <Header showAuth />
+      
+      {/* Hero */}
       <View style={styles.hero}>
-        <Text style={styles.heroTag}>PLATAFORMA LÍDER EN MÉXICO</Text>
-        <Text style={styles.heroTitle}>Trámites Digitales{"\n"}Sin Complicaciones</Text>
+        <View style={styles.heroBadge}>
+          <Ionicons name="flash" size={14} color={colors.brand.primary} />
+          <Text style={styles.heroBadgeText}>PLATAFORMA LÍDER EN MÉXICO</Text>
+        </View>
+        <Text style={styles.heroTitle}>Trámites y Consultas{"\n"}Digitales al Instante</Text>
         <Text style={styles.heroSubtitle}>
-          Obtén tu historial laboral IMSS, CURP, constancias fiscales y más. Todo desde tu celular, rápido y seguro.
+          Consulta tu historial IMSS, verifica tu CURP, obtén tu RFC y más. Todo desde una sola plataforma, rápido y seguro.
         </Text>
-        <View style={styles.heroBtns}>
-          <Button title="Ver Servicios" onPress={handleGetStarted} size="large" />
-          <Button title="Cómo Funciona" onPress={() => {}} variant="outline" size="large" />
+        <View style={styles.heroCtas}>
+          <Button title="Explorar Servicios" onPress={() => router.push('/servicios')} size="lg" fullWidth />
+          <Button title="Cómo Funciona" onPress={() => router.push('/como-funciona')} variant="outline" size="lg" fullWidth />
         </View>
-        <View style={styles.stats}>
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>10K+</Text>
-            <Text style={styles.statLabel}>Clientes</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>50K+</Text>
-            <Text style={styles.statLabel}>Trámites</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Text style={styles.statNumber}>99%</Text>
-            <Text style={styles.statLabel}>Satisfacción</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Features */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTag}>BENEFICIOS</Text>
-        <Text style={styles.sectionTitle}>¿Por qué elegirnos?</Text>
-        <View style={styles.featuresGrid}>
-          {features.map((f, i) => (
-            <View key={i} style={styles.featureCard}>
-              <View style={styles.featureIcon}>
-                <Ionicons name={f.icon as any} size={24} color={colors.primary} />
-              </View>
-              <Text style={styles.featureTitle}>{f.title}</Text>
-              <Text style={styles.featureDesc}>{f.desc}</Text>
+        
+        {/* Trust indicators */}
+        <View style={styles.trustRow}>
+          {trust.map((item, i) => (
+            <View key={i} style={styles.trustItem}>
+              <Ionicons name={item.icon as any} size={16} color={colors.brand.primary} />
+              <Text style={styles.trustText}>{item.text}</Text>
             </View>
           ))}
         </View>
       </View>
 
-      {/* How it Works */}
-      <View style={[styles.section, styles.sectionDark]}>
-        <Text style={styles.sectionTag}>PROCESO</Text>
-        <Text style={styles.sectionTitle}>¿Cómo funciona?</Text>
-        <View style={styles.steps}>
-          {steps.map((step, i) => (
-            <View key={i} style={styles.step}>
-              <View style={styles.stepNumber}>
-                <Text style={styles.stepNumberText}>{step.number}</Text>
+      {/* Benefits */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTag}>BENEFICIOS</Text>
+        <Text style={styles.sectionTitle}>¿Por qué elegir {APP_NAME}?</Text>
+        <View style={styles.benefitsGrid}>
+          {benefits.map((b, i) => (
+            <View key={i} style={styles.benefitCard}>
+              <View style={styles.benefitIcon}>
+                <Ionicons name={b.icon as any} size={24} color={colors.brand.primary} />
               </View>
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>{step.title}</Text>
-                <Text style={styles.stepDesc}>{step.desc}</Text>
-              </View>
-              {i < steps.length - 1 && <View style={styles.stepLine} />}
+              <Text style={styles.benefitTitle}>{b.title}</Text>
+              <Text style={styles.benefitDesc}>{b.desc}</Text>
             </View>
           ))}
         </View>
       </View>
 
       {/* Services Preview */}
-      <View style={styles.section}>
+      <View style={[styles.section, styles.sectionAlt]}>
         <Text style={styles.sectionTag}>SERVICIOS</Text>
-        <Text style={styles.sectionTitle}>Nuestros Trámites</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.servicesScroll}>
-          {services.slice(0, 4).map((service: Service) => (
-            <TouchableOpacity
+        <Text style={styles.sectionTitle}>Nuestros Trámites Más Solicitados</Text>
+        <View style={styles.servicesGrid}>
+          {services.slice(0, 4).map((service) => (
+            <ServiceCard
               key={service.id}
-              style={styles.servicePreview}
-              onPress={() => router.push(`/service/${service.id}`)}
-            >
-              <View style={styles.servicePreviewIcon}>
-                <Ionicons name="document-text" size={32} color={colors.primary} />
-              </View>
-              <Text style={styles.servicePreviewName}>{service.name}</Text>
-              <Text style={styles.servicePreviewPrice}>${service.price.toLocaleString('es-MX')} MXN</Text>
-              <Text style={styles.servicePreviewTime}>{service.delivery_time}</Text>
-            </TouchableOpacity>
+              service={service}
+              onPress={() => router.push(`/servicios/${service.slug}`)}
+              style={styles.serviceCard}
+            />
           ))}
-        </ScrollView>
-        <Button title="Ver todos los servicios" onPress={handleGetStarted} variant="outline" style={styles.viewAllBtn} />
+        </View>
+        <Button 
+          title="Ver Todos los Servicios" 
+          onPress={() => router.push('/servicios')} 
+          variant="outline" 
+          style={{ marginTop: spacing.lg }}
+        />
+      </View>
+
+      {/* How it Works */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTag}>PROCESO</Text>
+        <Text style={styles.sectionTitle}>¿Cómo Funciona?</Text>
+        <View style={styles.stepsContainer}>
+          {steps.map((step, i) => (
+            <View key={i} style={styles.step}>
+              <View style={styles.stepNum}>
+                <Text style={styles.stepNumText}>{step.num}</Text>
+              </View>
+              <View style={styles.stepContent}>
+                <Text style={styles.stepTitle}>{step.title}</Text>
+                <Text style={styles.stepDesc}>{step.desc}</Text>
+              </View>
+              {i < steps.length - 1 && <View style={styles.stepConnector} />}
+            </View>
+          ))}
+        </View>
       </View>
 
       {/* FAQ */}
-      <View style={[styles.section, styles.sectionDark]}>
+      <View style={[styles.section, styles.sectionAlt]}>
         <Text style={styles.sectionTag}>FAQ</Text>
         <Text style={styles.sectionTitle}>Preguntas Frecuentes</Text>
         {faqs.map((faq, i) => (
-          <View key={i} style={styles.faqItem}>
-            <View style={styles.faqQ}>
-              <Ionicons name="help-circle" size={20} color={colors.primary} />
-              <Text style={styles.faqQText}>{faq.q}</Text>
+          <View key={i} style={styles.faqCard}>
+            <View style={styles.faqHeader}>
+              <Ionicons name="help-circle" size={20} color={colors.brand.primary} />
+              <Text style={styles.faqQuestion}>{faq.q}</Text>
             </View>
-            <Text style={styles.faqA}>{faq.a}</Text>
+            <Text style={styles.faqAnswer}>{faq.a}</Text>
           </View>
         ))}
+        <TouchableOpacity onPress={() => router.push('/faq')} style={styles.faqMoreLink}>
+          <Text style={styles.faqMoreText}>Ver todas las preguntas</Text>
+          <Ionicons name="arrow-forward" size={16} color={colors.brand.primary} />
+        </TouchableOpacity>
       </View>
 
       {/* CTA */}
       <View style={styles.cta}>
+        <View style={styles.ctaIcon}>
+          <Ionicons name="rocket" size={32} color={colors.text.inverse} />
+        </View>
         <Text style={styles.ctaTitle}>¿Listo para comenzar?</Text>
-        <Text style={styles.ctaSubtitle}>Obtén tus documentos oficiales hoy mismo</Text>
-        <Button title="Solicitar Ahora" onPress={handleGetStarted} size="large" />
+        <Text style={styles.ctaSubtitle}>Crea tu cuenta gratis y realiza tu primer trámite hoy</Text>
+        <Button title="Crear Cuenta Gratis" onPress={() => router.push('/register')} size="lg" />
       </View>
 
-      {/* Footer */}
-      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.lg }]}>
-        <View style={styles.footerLogo}>
-          <Ionicons name="document-text" size={24} color={colors.primary} />
-          <Text style={styles.footerLogoText}>ProcedimientosMX</Text>
-        </View>
-        <Text style={styles.footerText}>© 2024 ProcedimientosMX. Todos los derechos reservados.</Text>
-        <Text style={styles.footerText}>Servicio de trámites digitales en México</Text>
-      </View>
+      <Footer />
     </ScrollView>
   );
 }
@@ -199,180 +176,152 @@ export default function LandingPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg.primary,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  // Hero
+  hero: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  logo: {
-    flexDirection: 'row',
+    paddingVertical: spacing['3xl'],
     alignItems: 'center',
-    gap: spacing.sm,
   },
-  logoText: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-    color: colors.text,
-  },
-  logoAccent: {
-    color: colors.primary,
-  },
-  loginBtn: {
+  heroBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    backgroundColor: 'rgba(0, 217, 255, 0.1)',
+    backgroundColor: `${colors.brand.primary}15`,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
+    marginBottom: spacing.lg,
   },
-  loginText: {
-    color: colors.primary,
-    fontWeight: fontWeight.medium,
-    fontSize: fontSize.sm,
-  },
-  hero: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xxl,
-    alignItems: 'center',
-  },
-  heroTag: {
+  heroBadgeText: {
     fontSize: fontSize.xs,
-    color: colors.primary,
+    color: colors.brand.primary,
     fontWeight: fontWeight.bold,
-    letterSpacing: 2,
-    marginBottom: spacing.md,
+    letterSpacing: 1,
   },
   heroTitle: {
-    fontSize: fontSize.hero,
+    fontSize: fontSize['4xl'],
     fontWeight: fontWeight.bold,
-    color: colors.text,
+    color: colors.text.primary,
     textAlign: 'center',
     lineHeight: 48,
     marginBottom: spacing.md,
   },
   heroSubtitle: {
     fontSize: fontSize.md,
-    color: colors.textSecondary,
+    color: colors.text.secondary,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 26,
     marginBottom: spacing.xl,
-    paddingHorizontal: spacing.md,
+    maxWidth: 400,
   },
-  heroBtns: {
-    flexDirection: 'column',
+  heroCtas: {
+    width: '100%',
     gap: spacing.md,
-    width: '100%',
+    maxWidth: 320,
   },
-  stats: {
+  trustRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'center',
+    gap: spacing.lg,
+    marginTop: spacing['2xl'],
+  },
+  trustItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: spacing.xxl,
-    backgroundColor: colors.backgroundCard,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.xl,
-    borderRadius: borderRadius.xl,
-    width: '100%',
+    gap: spacing.xs,
   },
-  stat: {
-    alignItems: 'center',
-    flex: 1,
+  trustText: {
+    fontSize: fontSize.xs,
+    color: colors.text.secondary,
   },
-  statNumber: {
-    fontSize: fontSize.xxl,
-    fontWeight: fontWeight.bold,
-    color: colors.primary,
-  },
-  statLabel: {
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: colors.border,
-  },
+  // Section
   section: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xxl,
+    paddingVertical: spacing['2xl'],
   },
-  sectionDark: {
-    backgroundColor: colors.backgroundSecondary,
+  sectionAlt: {
+    backgroundColor: colors.bg.secondary,
   },
   sectionTag: {
     fontSize: fontSize.xs,
-    color: colors.primary,
+    color: colors.brand.primary,
     fontWeight: fontWeight.bold,
     letterSpacing: 2,
-    marginBottom: spacing.sm,
     textAlign: 'center',
+    marginBottom: spacing.sm,
   },
   sectionTitle: {
-    fontSize: fontSize.xxl,
+    fontSize: fontSize['2xl'],
     fontWeight: fontWeight.bold,
-    color: colors.text,
+    color: colors.text.primary,
     textAlign: 'center',
     marginBottom: spacing.xl,
   },
-  featuresGrid: {
+  // Benefits
+  benefitsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.md,
   },
-  featureCard: {
+  benefitCard: {
     width: (width - spacing.lg * 2 - spacing.md) / 2,
-    backgroundColor: colors.backgroundCard,
+    backgroundColor: colors.bg.card,
     padding: spacing.lg,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.border.default,
   },
-  featureIcon: {
+  benefitIcon: {
     width: 48,
     height: 48,
     borderRadius: borderRadius.md,
-    backgroundColor: 'rgba(0, 217, 255, 0.1)',
+    backgroundColor: `${colors.brand.primary}15`,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: spacing.md,
   },
-  featureTitle: {
+  benefitTitle: {
     fontSize: fontSize.md,
     fontWeight: fontWeight.semibold,
-    color: colors.text,
+    color: colors.text.primary,
     marginBottom: spacing.xs,
   },
-  featureDesc: {
+  benefitDesc: {
     fontSize: fontSize.sm,
-    color: colors.textSecondary,
+    color: colors.text.secondary,
     lineHeight: 20,
   },
-  steps: {
+  // Services
+  servicesGrid: {
+    gap: spacing.md,
+  },
+  serviceCard: {
+    marginBottom: 0,
+  },
+  // Steps
+  stepsContainer: {
     gap: spacing.lg,
   },
   step: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
     position: 'relative',
   },
-  stepNumber: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primary,
+  stepNum: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.brand.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: spacing.md,
+    marginRight: spacing.lg,
   },
-  stepNumberText: {
-    fontSize: fontSize.lg,
+  stepNumText: {
+    fontSize: fontSize.md,
     fontWeight: fontWeight.bold,
-    color: colors.background,
+    color: colors.text.inverse,
   },
   stepContent: {
     flex: 1,
@@ -381,130 +330,90 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: fontSize.lg,
     fontWeight: fontWeight.semibold,
-    color: colors.text,
+    color: colors.text.primary,
     marginBottom: spacing.xs,
   },
   stepDesc: {
     fontSize: fontSize.sm,
-    color: colors.textSecondary,
+    color: colors.text.secondary,
+    lineHeight: 22,
   },
-  stepLine: {
+  stepConnector: {
     position: 'absolute',
-    left: 19,
-    top: 44,
+    left: 23,
+    top: 52,
     width: 2,
-    height: 40,
-    backgroundColor: colors.border,
+    height: 32,
+    backgroundColor: colors.border.light,
   },
-  servicesScroll: {
-    marginHorizontal: -spacing.lg,
-    paddingHorizontal: spacing.lg,
-  },
-  servicePreview: {
-    width: 180,
-    backgroundColor: colors.backgroundCard,
+  // FAQ
+  faqCard: {
+    backgroundColor: colors.bg.card,
+    borderRadius: borderRadius.lg,
     padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    marginRight: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-  },
-  servicePreviewIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: borderRadius.lg,
-    backgroundColor: 'rgba(0, 217, 255, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  servicePreviewName: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.sm,
-  },
-  servicePreviewPrice: {
-    fontSize: fontSize.md,
-    fontWeight: fontWeight.bold,
-    color: colors.primary,
-    marginBottom: 4,
-  },
-  servicePreviewTime: {
-    fontSize: fontSize.xs,
-    color: colors.textSecondary,
-  },
-  viewAllBtn: {
-    marginTop: spacing.xl,
-  },
-  faqItem: {
-    backgroundColor: colors.backgroundCard,
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
     marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.border.default,
   },
-  faqQ: {
+  faqHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     marginBottom: spacing.sm,
   },
-  faqQText: {
-    fontSize: fontSize.md,
+  faqQuestion: {
+    fontSize: fontSize.base,
     fontWeight: fontWeight.semibold,
-    color: colors.text,
+    color: colors.text.primary,
     flex: 1,
   },
-  faqA: {
+  faqAnswer: {
     fontSize: fontSize.sm,
-    color: colors.textSecondary,
+    color: colors.text.secondary,
     lineHeight: 22,
     paddingLeft: 28,
   },
+  faqMoreLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingTop: spacing.md,
+  },
+  faqMoreText: {
+    fontSize: fontSize.sm,
+    color: colors.brand.primary,
+    fontWeight: fontWeight.medium,
+  },
+  // CTA
   cta: {
-    backgroundColor: 'rgba(0, 217, 255, 0.1)',
+    backgroundColor: `${colors.brand.primary}15`,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xxl,
+    paddingVertical: spacing['3xl'],
     alignItems: 'center',
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: 'rgba(0, 217, 255, 0.2)',
+    borderColor: `${colors.brand.primary}30`,
+  },
+  ctaIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.brand.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
   },
   ctaTitle: {
-    fontSize: fontSize.xxl,
+    fontSize: fontSize['2xl'],
     fontWeight: fontWeight.bold,
-    color: colors.text,
+    color: colors.text.primary,
     marginBottom: spacing.sm,
   },
   ctaSubtitle: {
     fontSize: fontSize.md,
-    color: colors.textSecondary,
+    color: colors.text.secondary,
+    textAlign: 'center',
     marginBottom: spacing.lg,
-  },
-  footer: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xxl,
-    alignItems: 'center',
-    backgroundColor: colors.backgroundSecondary,
-  },
-  footerLogo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  footerLogoText: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
-    color: colors.text,
-  },
-  footerText: {
-    fontSize: fontSize.sm,
-    color: colors.textMuted,
-    marginBottom: spacing.xs,
   },
 });

@@ -1,17 +1,9 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import { User } from '@/src/types';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-
-interface User {
-  id: string;
-  full_name: string;
-  email: string;
-  phone?: string;
-  role: string;
-  created_at: string;
-}
 
 interface AuthState {
   user: User | null;
@@ -19,10 +11,11 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: { full_name: string; email: string; phone?: string; password: string }) => Promise<void>;
+  register: (data: { name: string; email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
   loadUser: () => Promise<void>;
-  updateProfile: (data: { full_name?: string; phone?: string }) => Promise<void>;
+  updateProfile: (data: { name?: string; email?: string }) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -35,8 +28,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const response = await axios.post(`${API_URL}/api/auth/login`, { email, password });
       const { token, user } = response.data;
-      await AsyncStorage.setItem('token', token);
-      await AsyncStorage.setItem('user', JSON.stringify(user));
+      await AsyncStorage.setItem('tramitly_token', token);
+      await AsyncStorage.setItem('tramitly_user', JSON.stringify(user));
       set({ user, token, isAuthenticated: true });
     } catch (error: any) {
       throw new Error(error.response?.data?.detail || 'Error al iniciar sesión');
@@ -47,8 +40,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const response = await axios.post(`${API_URL}/api/auth/register`, data);
       const { token, user } = response.data;
-      await AsyncStorage.setItem('token', token);
-      await AsyncStorage.setItem('user', JSON.stringify(user));
+      await AsyncStorage.setItem('tramitly_token', token);
+      await AsyncStorage.setItem('tramitly_user', JSON.stringify(user));
       set({ user, token, isAuthenticated: true });
     } catch (error: any) {
       throw new Error(error.response?.data?.detail || 'Error al registrarse');
@@ -56,15 +49,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    await AsyncStorage.removeItem('token');
-    await AsyncStorage.removeItem('user');
+    await AsyncStorage.removeItem('tramitly_token');
+    await AsyncStorage.removeItem('tramitly_user');
     set({ user: null, token: null, isAuthenticated: false });
   },
 
   loadUser: async () => {
     try {
-      const token = await AsyncStorage.getItem('token');
-      const userStr = await AsyncStorage.getItem('user');
+      const token = await AsyncStorage.getItem('tramitly_token');
+      const userStr = await AsyncStorage.getItem('tramitly_user');
       if (token && userStr) {
         const user = JSON.parse(userStr);
         set({ user, token, isAuthenticated: true, isLoading: false });
@@ -77,7 +70,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   updateProfile: async (data) => {
-    const { token, user } = get();
+    const { token } = get();
     if (!token) throw new Error('No autenticado');
     
     try {
@@ -85,10 +78,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         headers: { Authorization: `Bearer ${token}` }
       });
       const updatedUser = response.data;
-      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+      await AsyncStorage.setItem('tramitly_user', JSON.stringify(updatedUser));
       set({ user: updatedUser });
     } catch (error: any) {
       throw new Error(error.response?.data?.detail || 'Error al actualizar perfil');
+    }
+  },
+
+  refreshUser: async () => {
+    const { token } = get();
+    if (!token) return;
+    
+    try {
+      const response = await axios.get(`${API_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const user = response.data;
+      await AsyncStorage.setItem('tramitly_user', JSON.stringify(user));
+      set({ user });
+    } catch (error) {
+      // Token might be invalid, logout
+      await get().logout();
     }
   },
 }));
