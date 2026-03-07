@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Switch, Modal, Alert, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '@/src/utils/theme';
 import { Button, Card, Input } from '@/src/components/ui';
 import { formatCurrency, formatDate } from '@/src/utils/formatters';
@@ -11,6 +12,16 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+
+// Mock integrations status for services
+const SERVICE_INTEGRATIONS: Record<string, { hasIntegration: boolean; mode: 'mock' | 'real' | null; status: 'active' | 'inactive' | null }> = {
+  'historial-laboral-imss': { hasIntegration: true, mode: 'mock', status: 'active' },
+  'semanas-cotizadas-imss': { hasIntegration: true, mode: 'mock', status: 'active' },
+  'verificacion-curp': { hasIntegration: true, mode: 'mock', status: 'inactive' },
+  'verificacion-nss': { hasIntegration: false, mode: null, status: null },
+  'constancia-fiscal-sat': { hasIntegration: true, mode: 'mock', status: 'active' },
+  'consulta-infonavit': { hasIntegration: false, mode: null, status: null },
+};
 
 export default function AdminServiciosPage() {
   const insets = useSafeAreaInsets();
@@ -132,6 +143,31 @@ export default function AdminServiciosPage() {
                   <Text style={styles.serviceStatValue}>{service.estimated_time}</Text>
                 </View>
               </View>
+              
+              {/* Integration Status */}
+              {(() => {
+                const integration = SERVICE_INTEGRATIONS[service.slug];
+                return (
+                  <View style={styles.integrationStatus}>
+                    {integration?.hasIntegration ? (
+                      <>
+                        <View style={[
+                          styles.integrationDot,
+                          { backgroundColor: integration.status === 'active' ? colors.status.success : colors.status.warning }
+                        ]} />
+                        <Text style={styles.integrationText}>
+                          API {integration.mode === 'mock' ? 'Mock' : 'Real'} - {integration.status === 'active' ? 'Activa' : 'Inactiva'}
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        <Ionicons name="warning" size={14} color={colors.status.warning} />
+                        <Text style={styles.integrationTextWarning}>Sin integración configurada</Text>
+                      </>
+                    )}
+                  </View>
+                );
+              })()}
             </TouchableOpacity>
           ))
         )}
@@ -438,5 +474,27 @@ const styles = StyleSheet.create({
   },
   modalActions: {
     marginTop: spacing.lg,
+  },
+  integrationStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.default,
+  },
+  integrationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  integrationText: {
+    fontSize: fontSize.xs,
+    color: colors.text.secondary,
+  },
+  integrationTextWarning: {
+    fontSize: fontSize.xs,
+    color: colors.status.warning,
   },
 });

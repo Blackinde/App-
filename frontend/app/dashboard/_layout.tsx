@@ -1,9 +1,8 @@
 import React from 'react';
-import { Stack, Redirect } from 'expo-router';
+import { Slot, Redirect, useRouter, usePathname } from 'expo-router';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, usePathname } from 'expo-router';
 import { colors, spacing, fontSize, fontWeight } from '@/src/utils/theme';
 import { useAuthStore } from '@/src/store/authStore';
 import { NAV_ITEMS } from '@/src/constants';
@@ -14,27 +13,32 @@ export default function DashboardLayout() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
-  if (isLoading) return null;
+  // Show nothing while checking auth
+  if (isLoading) {
+    return null;
+  }
 
+  // Redirect to login if not authenticated
   if (!isAuthenticated) {
     return <Redirect href="/login" />;
   }
 
+  // Redirect admin users to admin panel
   if (user?.role === 'admin') {
     return <Redirect href="/admin" />;
   }
 
   const navItems = NAV_ITEMS.dashboard;
 
+  const handleNavigation = (href: string) => {
+    router.replace(href as any);
+  };
+
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom }]}>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: colors.bg.primary },
-          animation: 'fade',
-        }}
-      />
+      <View style={styles.content}>
+        <Slot />
+      </View>
       
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
@@ -45,10 +49,11 @@ export default function DashboardLayout() {
             <TouchableOpacity
               key={item.href}
               style={styles.navItem}
-              onPress={() => router.push(item.href as any)}
+              onPress={() => handleNavigation(item.href)}
+              activeOpacity={0.7}
             >
               <Ionicons
-                name={item.icon as any}
+                name={(isActive ? item.icon.replace('-outline', '') : item.icon) as any}
                 size={24}
                 color={isActive ? colors.brand.primary : colors.text.muted}
               />
@@ -67,6 +72,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg.primary,
+  },
+  content: {
+    flex: 1,
   },
   bottomNav: {
     flexDirection: 'row',

@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/src/store/authStore';
 import { colors } from '@/src/utils/theme';
 
@@ -14,14 +15,16 @@ export default function RootLayout() {
 
   if (isLoading) {
     return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color={colors.brand.primary} />
-      </View>
+      <SafeAreaProvider>
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color={colors.brand.primary} />
+        </View>
+      </SafeAreaProvider>
     );
   }
 
   return (
-    <>
+    <SafeAreaProvider>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -31,17 +34,16 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" />
-        <Stack.Screen name="servicios/index" />
-        <Stack.Screen name="servicios/[slug]" />
+        <Stack.Screen name="login" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="register" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="servicios" />
         <Stack.Screen name="como-funciona" />
         <Stack.Screen name="faq" />
         <Stack.Screen name="contacto" />
-        <Stack.Screen name="login" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="register" options={{ presentation: 'modal' }} />
         <Stack.Screen name="dashboard" />
         <Stack.Screen name="admin" />
       </Stack>
-    </>
+    </SafeAreaProvider>
   );
 }
 

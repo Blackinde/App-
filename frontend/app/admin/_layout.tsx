@@ -1,9 +1,8 @@
 import React from 'react';
-import { Stack, Redirect } from 'expo-router';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { Slot, Redirect, useRouter, usePathname } from 'expo-router';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, usePathname } from 'expo-router';
 import { colors, spacing, fontSize, fontWeight, borderRadius } from '@/src/utils/theme';
 import { useAuthStore } from '@/src/store/authStore';
 import { NAV_ITEMS } from '@/src/constants';
@@ -14,55 +13,59 @@ export default function AdminLayout() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
-  if (isLoading) return null;
+  // Show nothing while checking auth
+  if (isLoading) {
+    return null;
+  }
 
+  // Redirect to login if not authenticated
   if (!isAuthenticated) {
     return <Redirect href="/login" />;
   }
 
+  // Redirect non-admin users to dashboard
   if (user?.role !== 'admin') {
     return <Redirect href="/dashboard" />;
   }
 
   const navItems = NAV_ITEMS.admin;
 
+  const handleNavigation = (href: string) => {
+    router.replace(href as any);
+  };
+
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom }]}>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: colors.bg.primary },
-          animation: 'fade',
-        }}
-      />
+      <View style={styles.content}>
+        <Slot />
+      </View>
       
       {/* Bottom Navigation */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.bottomNav}
-      >
+      <View style={styles.bottomNav}>
         {navItems.map((item) => {
           const isActive = pathname === item.href || 
             (item.href === '/admin' && pathname === '/admin');
           return (
             <TouchableOpacity
               key={item.href}
-              style={[styles.navItem, isActive && styles.navItemActive]}
-              onPress={() => router.push(item.href as any)}
+              style={styles.navItem}
+              onPress={() => handleNavigation(item.href)}
+              activeOpacity={0.7}
             >
-              <Ionicons
-                name={item.icon as any}
-                size={20}
-                color={isActive ? colors.text.inverse : colors.text.muted}
-              />
+              <View style={[styles.navIconWrap, isActive && styles.navIconWrapActive]}>
+                <Ionicons
+                  name={(isActive ? item.icon.replace('-outline', '') : item.icon) as any}
+                  size={20}
+                  color={isActive ? colors.brand.primary : colors.text.muted}
+                />
+              </View>
               <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
                 {item.label}
               </Text>
             </TouchableOpacity>
           );
         })}
-      </ScrollView>
+      </View>
     </View>
   );
 }
@@ -72,32 +75,40 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg.primary,
   },
+  content: {
+    flex: 1,
+  },
   bottomNav: {
     flexDirection: 'row',
     backgroundColor: colors.bg.card,
     borderTopWidth: 1,
     borderTopColor: colors.border.default,
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    gap: spacing.xs,
+    paddingHorizontal: spacing.xs,
   },
   navItem: {
-    flexDirection: 'row',
+    flex: 1,
     alignItems: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.full,
+    paddingVertical: spacing.xs,
   },
-  navItemActive: {
-    backgroundColor: colors.brand.primary,
+  navIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  navIconWrapActive: {
+    backgroundColor: `${colors.brand.primary}20`,
   },
   navLabel: {
-    fontSize: fontSize.xs,
+    fontSize: 10,
     color: colors.text.muted,
     fontWeight: fontWeight.medium,
+    textAlign: 'center',
   },
   navLabelActive: {
-    color: colors.text.inverse,
+    color: colors.brand.primary,
   },
 });
