@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '@/src/utils/theme';
 import { Header } from '@/src/components/layout/Header';
 import { Button, Input, Card } from '@/src/components/ui';
@@ -16,15 +15,13 @@ import { FIELD_LABELS, FIELD_ICONS, SERVICE_CATEGORIES } from '@/src/constants';
 export default function ServiceDetailPage() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { getServiceBySlug } = useServicesStore();
   const { createOrder } = useOrdersStore();
-  const { user, isAuthenticated, refreshUser } = useAuthStore();
+  const { isAuthenticated, user, refreshUser } = useAuthStore();
   
   const [service, setService] = useState<Service | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -32,23 +29,20 @@ export default function ServiceDetailPage() {
     loadService();
   }, [slug]);
 
-  useEffect(() => {
-    if (isAuthenticated && user && service) {
-      const prefilled: Record<string, string> = {};
-      if (service.required_fields.includes('name')) prefilled.name = user.name || '';
-      if (service.required_fields.includes('email')) prefilled.email = user.email || '';
-      setFormData(prev => ({ ...prefilled, ...prev }));
-    }
-  }, [isAuthenticated, user, service]);
-
   const loadService = async () => {
     if (!slug) return;
+    setLoading(true);
     const data = await getServiceBySlug(slug);
     setService(data);
+    if (data) {
+      const initialForm: Record<string, string> = {};
+      data.required_fields.forEach(field => {
+        initialForm[field] = '';
+      });
+      setFormData(initialForm);
+    }
     setLoading(false);
   };
-
-  const categoryConfig = service ? SERVICE_CATEGORIES.find(c => c.id === service.category) : null;
 
   const validate = () => {
     if (!service) return false;
@@ -58,59 +52,46 @@ export default function ServiceDetailPage() {
         newErrors[field] = `${FIELD_LABELS[field] || field} es requerido`;
       }
     });
-    if (formData.curp && formData.curp.length !== 18) {
-      newErrors.curp = 'El CURP debe tener 18 caracteres';
-    }
-    if (formData.nss && formData.nss.length !== 11) {
-      newErrors.nss = 'El NSS debe tener 11 dígitos';
-    }
-    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Correo electrónico inválido';
-    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleRequestService = () => {
+  const handleSubmit = async () => {
     if (!isAuthenticated) {
       Alert.alert(
         'Inicia Sesión',
         'Necesitas una cuenta para solicitar este servicio',
         [
           { text: 'Cancelar', style: 'cancel' },
-          { text: 'Iniciar Sesión', onPress: () => router.push('/login') },
-          { text: 'Crear Cuenta', onPress: () => router.push('/register') },
+          { text: 'Iniciar Sesión', onPress: () => router.push('/login') }
         ]
       );
       return;
     }
-    
-    if (user && service && user.balance < service.price) {
+
+    if (!validate() || !service) return;
+
+    // Check balance
+    if ((user?.balance || 0) < service.price) {
       Alert.alert(
         'Saldo Insuficiente',
-        `Necesitas ${formatCurrency(service.price)} para este servicio. Tu saldo actual es ${formatCurrency(user.balance)}.`,
+        `Necesitas $${service.price.toFixed(2)} MXN para este servicio. Tu saldo actual es ${formatCurrency(user?.balance || 0)}`,
         [
           { text: 'Cancelar', style: 'cancel' },
-          { text: 'Recargar Saldo', onPress: () => router.push('/dashboard/saldo') },
+          { text: 'Recargar Saldo', onPress: () => router.push('/dashboard/saldo') }
         ]
       );
       return;
     }
-    
-    setShowForm(true);
-  };
 
-  const handleSubmit = async () => {
-    if (!validate() || !service) return;
-    
     setSubmitting(true);
     try {
       const order = await createOrder(service.id, formData);
       await refreshUser();
       Alert.alert(
-        'Solicitud Creada',
-        `Tu solicitud ${order.order_number} ha sido procesada exitosamente.`,
-        [{ text: 'Ver Pedido', onPress: () => router.push(`/dashboard/pedidos`) }]
+        '¡Pedido Creado!',
+        `Tu orden ${order.order_number} ha sido creada exitosamente. Recibirás tus resultados en ${service.estimated_time}.`,
+        [{ text: 'Ver Mis Pedidos', onPress: () => router.push('/dashboard/pedidos') }]
       );
     } catch (error: any) {
       Alert.alert('Error', error.message);
@@ -121,117 +102,111 @@ export default function ServiceDetailPage() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.brand.primary} />
+      <View style={styles.container}>
+        <Header showBack showAuth />
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color={colors.brand.primary} />
+        </View>
       </View>
     );
   }
 
   if (!service) {
     return (
-      <View style={styles.errorContainer}>
-        <Header showBack />
-        <View style={styles.errorContent}>
-          <Ionicons name="alert-circle" size={64} color={colors.status.error} />
-          <Text style={styles.errorTitle}>Servicio no encontrado</Text>
-          <Button title="Ver Servicios" onPress={() => router.push('/servicios')} />
+      <View style={styles.container}>
+        <Header showBack showAuth />
+        <View style={styles.notFound}>
+          <Ionicons name="alert-circle" size={48} color={colors.text.muted} />
+          <Text style={styles.notFoundText}>Servicio no encontrado</Text>
+          <Button title="Ver Todos los Servicios" onPress={() => router.push('/servicios')} variant="outline" />
         </View>
       </View>
     );
   }
 
+  const categoryConfig = SERVICE_CATEGORIES.find(c => c.id === service.category);
+
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Header showBack />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
+      <Header showBack showAuth />
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* Service Header */}
         <View style={styles.header}>
+          <View style={styles.iconContainer}>
+            <Ionicons name={categoryConfig?.icon as any || 'document'} size={32} color={colors.brand.primary} />
+          </View>
           <View style={styles.categoryBadge}>
-            <Ionicons name={categoryConfig?.icon as any || 'folder'} size={14} color={colors.brand.primary} />
             <Text style={styles.categoryText}>{categoryConfig?.name || service.category}</Text>
           </View>
           <Text style={styles.title}>{service.name}</Text>
-          <View style={styles.priceRow}>
-            <Text style={styles.price}>{formatCurrency(service.price)}</Text>
-            <View style={styles.timeBadge}>
-              <Ionicons name="time-outline" size={14} color={colors.text.secondary} />
-              <Text style={styles.timeText}>{service.estimated_time}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Description */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Descripción</Text>
           <Text style={styles.description}>{service.description}</Text>
         </View>
 
-        {/* Requirements */}
-        {service.requirements.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Requisitos</Text>
-            {service.requirements.map((req, i) => (
-              <View key={i} style={styles.listItem}>
-                <Ionicons name="checkmark-circle" size={18} color={colors.status.success} />
-                <Text style={styles.listText}>{req}</Text>
-              </View>
-            ))}
+        {/* Info Cards */}
+        <View style={styles.infoRow}>
+          <View style={styles.infoCard}>
+            <Ionicons name="cash" size={20} color={colors.brand.primary} />
+            <Text style={styles.infoLabel}>Precio</Text>
+            <Text style={styles.infoValue}>{formatCurrency(service.price)}</Text>
           </View>
-        )}
+          <View style={styles.infoCard}>
+            <Ionicons name="time" size={20} color={colors.brand.primary} />
+            <Text style={styles.infoLabel}>Tiempo Estimado</Text>
+            <Text style={styles.infoValue}>{service.estimated_time}</Text>
+          </View>
+        </View>
+
+        {/* Requirements */}
+        <Card title="Requisitos" icon="list-outline" style={styles.card}>
+          {service.requirements.map((req, i) => (
+            <View key={i} style={styles.requirementItem}>
+              <Ionicons name="checkmark-circle" size={18} color={colors.status.success} />
+              <Text style={styles.requirementText}>{req}</Text>
+            </View>
+          ))}
+        </Card>
+
+        {/* Form */}
+        <Card title="Datos del Solicitante" icon="person-outline" style={styles.card}>
+          {service.required_fields.map((field) => (
+            <Input
+              key={field}
+              label={FIELD_LABELS[field] || field}
+              value={formData[field] || ''}
+              onChangeText={(text) => setFormData({ ...formData, [field]: text })}
+              placeholder={`Ingresa tu ${FIELD_LABELS[field]?.toLowerCase() || field}`}
+              icon={FIELD_ICONS[field] as any}
+              error={errors[field]}
+              autoCapitalize={field === 'email' ? 'none' : field === 'name' ? 'words' : 'characters'}
+              keyboardType={field === 'email' ? 'email-address' : field === 'phone' ? 'phone-pad' : 'default'}
+            />
+          ))}
+        </Card>
 
         {/* Balance Info */}
         {isAuthenticated && user && (
-          <Card style={styles.balanceCard}>
-            <View style={styles.balanceRow}>
-              <View>
-                <Text style={styles.balanceLabel}>Tu saldo disponible</Text>
-                <Text style={styles.balanceValue}>{formatCurrency(user.balance)}</Text>
-              </View>
-              {user.balance >= service.price ? (
-                <View style={styles.balanceOk}>
-                  <Ionicons name="checkmark-circle" size={20} color={colors.status.success} />
-                  <Text style={styles.balanceOkText}>Saldo suficiente</Text>
-                </View>
-              ) : (
-                <Button title="Recargar" onPress={() => router.push('/dashboard/saldo')} size="sm" />
-              )}
-            </View>
-          </Card>
+          <View style={styles.balanceInfo}>
+            <Ionicons name="wallet" size={18} color={colors.text.secondary} />
+            <Text style={styles.balanceText}>
+              Tu saldo: <Text style={styles.balanceAmount}>{formatCurrency(user.balance)}</Text>
+            </Text>
+          </View>
         )}
 
-        {/* Request Form */}
-        {showForm ? (
-          <View style={styles.formSection}>
-            <Text style={styles.sectionTitle}>Datos para la Consulta</Text>
-            <Text style={styles.formHint}>Completa todos los campos para procesar tu solicitud</Text>
-            
-            {service.required_fields.map(field => (
-              <Input
-                key={field}
-                label={FIELD_LABELS[field] || field}
-                value={formData[field] || ''}
-                onChangeText={(text) => setFormData(prev => ({ ...prev, [field]: text }))}
-                placeholder={`Ingresa tu ${(FIELD_LABELS[field] || field).toLowerCase()}`}
-                icon={FIELD_ICONS[field] as any}
-                error={errors[field]}
-                autoCapitalize={field === 'email' ? 'none' : field === 'curp' || field === 'rfc' ? 'characters' : 'words'}
-                keyboardType={field === 'email' ? 'email-address' : field === 'phone' || field === 'nss' ? 'phone-pad' : 'default'}
-              />
-            ))}
-            
-            <Button title="Confirmar y Pagar" onPress={handleSubmit} loading={submitting} size="lg" fullWidth />
-            <Button title="Cancelar" onPress={() => setShowForm(false)} variant="ghost" fullWidth />
-          </View>
-        ) : (
-          <View style={styles.ctaSection}>
-            <Button
-              title="Solicitar Este Servicio"
-              onPress={handleRequestService}
-              size="lg"
-              fullWidth
-              icon={<Ionicons name="flash" size={20} color={colors.text.inverse} />}
-            />
-          </View>
+        {/* Submit Button */}
+        <Button
+          title={isAuthenticated ? `Solicitar por ${formatCurrency(service.price)}` : 'Inicia Sesión para Solicitar'}
+          onPress={handleSubmit}
+          loading={submitting}
+          size="lg"
+          fullWidth
+        />
+
+        {!isAuthenticated && (
+          <Text style={styles.loginHint}>
+            ¿No tienes cuenta?{' '}
+            <Text style={styles.loginLink} onPress={() => router.push('/register')}>Regístrate gratis</Text>
+          </Text>
         )}
       </ScrollView>
     </KeyboardAvoidingView>
@@ -243,36 +218,38 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg.primary,
   },
-  loadingContainer: {
+  content: {
+    padding: spacing.lg,
+  },
+  loading: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.bg.primary,
   },
-  errorContainer: {
-    flex: 1,
-    backgroundColor: colors.bg.primary,
-  },
-  errorContent: {
+  notFound: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     gap: spacing.md,
   },
-  errorTitle: {
+  notFoundText: {
     fontSize: fontSize.lg,
-    color: colors.text.secondary,
+    color: colors.text.muted,
   },
   header: {
-    padding: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  iconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: borderRadius.xl,
+    backgroundColor: `${colors.brand.primary}20`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.md,
   },
   categoryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: spacing.xs,
     backgroundColor: `${colors.brand.primary}15`,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
@@ -280,105 +257,85 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   categoryText: {
-    fontSize: fontSize.sm,
+    fontSize: fontSize.xs,
     color: colors.brand.primary,
-    fontWeight: fontWeight.medium,
+    fontWeight: fontWeight.semibold,
   },
   title: {
     fontSize: fontSize['2xl'],
     fontWeight: fontWeight.bold,
     color: colors.text.primary,
-    marginBottom: spacing.md,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  price: {
-    fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
-    color: colors.brand.primary,
-  },
-  timeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: colors.bg.card,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-  },
-  timeText: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-  },
-  section: {
-    padding: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  sectionTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
-    color: colors.text.primary,
-    marginBottom: spacing.md,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
   },
   description: {
     fontSize: fontSize.base,
     color: colors.text.secondary,
+    textAlign: 'center',
     lineHeight: 24,
   },
-  listItem: {
+  infoRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  infoCard: {
+    flex: 1,
+    backgroundColor: colors.bg.card,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border.default,
+  },
+  infoLabel: {
+    fontSize: fontSize.xs,
+    color: colors.text.muted,
+    marginTop: spacing.xs,
+  },
+  infoValue: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.bold,
+    color: colors.text.primary,
+    marginTop: 2,
+  },
+  card: {
+    marginBottom: spacing.lg,
+  },
+  requirementItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
     marginBottom: spacing.sm,
   },
-  listText: {
+  requirementText: {
+    fontSize: fontSize.sm,
+    color: colors.text.secondary,
     flex: 1,
-    fontSize: fontSize.base,
-    color: colors.text.secondary,
-    lineHeight: 22,
   },
-  balanceCard: {
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.lg,
-  },
-  balanceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  balanceLabel: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
-    marginBottom: 4,
-  },
-  balanceValue: {
-    fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
-    color: colors.text.primary,
-  },
-  balanceOk: {
+  balanceInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
-  },
-  balanceOkText: {
-    fontSize: fontSize.sm,
-    color: colors.status.success,
-    fontWeight: fontWeight.medium,
-  },
-  formSection: {
-    padding: spacing.lg,
-  },
-  formHint: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary,
+    justifyContent: 'center',
+    gap: spacing.sm,
     marginBottom: spacing.lg,
   },
-  ctaSection: {
-    padding: spacing.lg,
+  balanceText: {
+    fontSize: fontSize.sm,
+    color: colors.text.secondary,
+  },
+  balanceAmount: {
+    fontWeight: fontWeight.bold,
+    color: colors.brand.primary,
+  },
+  loginHint: {
+    fontSize: fontSize.sm,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginTop: spacing.md,
+  },
+  loginLink: {
+    color: colors.brand.primary,
+    fontWeight: fontWeight.medium,
   },
 });

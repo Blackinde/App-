@@ -21,7 +21,7 @@ export default function RegisterPage() {
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!name) newErrors.name = 'El nombre es requerido';
+    if (!name.trim()) newErrors.name = 'El nombre es requerido';
     if (!email) newErrors.email = 'El correo es requerido';
     else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = 'Correo inválido';
     if (!password) newErrors.password = 'La contraseña es requerida';
@@ -54,7 +54,7 @@ export default function RegisterPage() {
             <Ionicons name="person-add" size={40} color={colors.text.inverse} />
           </View>
           <Text style={styles.title}>Crear Cuenta</Text>
-          <Text style={styles.subtitle}>Regístrate para comenzar a usar {APP_NAME}</Text>
+          <Text style={styles.subtitle}>Únete a {APP_NAME} y comienza tus trámites</Text>
         </View>
 
         <View style={styles.form}>
@@ -62,8 +62,9 @@ export default function RegisterPage() {
             label="Nombre Completo"
             value={name}
             onChangeText={setName}
-            placeholder="Tu nombre"
+            placeholder="Tu nombre completo"
             icon="person-outline"
+            autoCapitalize="words"
             error={errors.name}
           />
           <Input
@@ -99,7 +100,15 @@ export default function RegisterPage() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>¿Ya tienes una cuenta?</Text>
-          <Button title="Iniciar sesión" onPress={() => router.push('/login')} variant="ghost" />
+          <Button title="Iniciar Sesión" onPress={() => router.push('/login')} variant="ghost" />
+        </View>
+
+        <View style={styles.terms}>
+          <Text style={styles.termsText}>
+            Al crear tu cuenta, aceptas nuestros{' '}
+            <Text style={styles.termsLink}>Términos de Servicio</Text> y{' '}
+            <Text style={styles.termsLink}>Política de Privacidad</Text>
+          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -152,5 +161,18 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: fontSize.base,
     color: colors.text.secondary,
+  },
+  terms: {
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  termsText: {
+    fontSize: fontSize.xs,
+    color: colors.text.muted,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  termsLink: {
+    color: colors.brand.primary,
   },
 });

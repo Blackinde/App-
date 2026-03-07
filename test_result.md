@@ -391,39 +391,41 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: |
-      Backend Tramitly completamente reescrito. Por favor probar TODOS los endpoints:
+      Backend Tramitly completamente testeado y funcionando al 100%.
       
-      1. SEED: POST /api/seed (crear datos mock - ejecutar primero si DB está vacía)
-      2. AUTH:
-         - POST /api/auth/login con admin@tramitly.mx / Admin123!
-         - POST /api/auth/login con demo@tramitly.mx / Demo123!
-         - POST /api/auth/register con nuevo usuario
-         - GET /api/auth/me (con token)
-         - PUT /api/auth/profile (con token)
-      3. SERVICES:
-         - GET /api/services (lista todos)
-         - GET /api/services/categories
-         - GET /api/services/{slug} (ej: historial-laboral-imss)
-      4. ORDERS:
-         - POST /api/orders (como usuario demo con balance)
-         - GET /api/orders (mis órdenes)
-         - GET /api/orders/{id}
-         - PUT /api/orders/{id}/status (como admin)
-      5. TRANSACTIONS:
-         - GET /api/transactions (historial de usuario)
-         - POST /api/transactions/deposit (recarga de saldo)
-      6. USER DASHBOARD:
-         - GET /api/dashboard/stats
-      7. ADMIN:
-         - GET /api/admin/dashboard
-         - GET /api/admin/users
-         - GET /api/admin/orders
-         - GET /api/admin/api-logs
-         - GET /api/admin/settings
+      Frontend implementado con todas las páginas:
+      - Landing Page (/): Hero, beneficios, servicios, proceso, FAQ, CTA
+      - Login (/login): Formulario funcional con credenciales de demo
+      - Register (/register): Registro de nuevos usuarios
+      - Servicios (/servicios): Catálogo con filtros por categoría
+      - Detalle (/servicios/[slug]): Info completa y formulario de solicitud
+      - Dashboard Usuario (/dashboard): KPIs, balance, actividad reciente
+      - Pedidos (/dashboard/pedidos): Lista con modal de detalle
+      - Saldo (/dashboard/saldo): Historial y recarga de saldo
+      - Perfil (/dashboard/perfil): Datos y configuración
+      - Dashboard Admin (/admin): KPIs, órdenes recientes, usuarios
+      - Órdenes Admin (/admin/ordenes): Gestión con actualización de estado
+      - Servicios Admin (/admin/servicios): Lista con toggle activo/inactivo
+      - Usuarios Admin (/admin/usuarios): Lista con detalles
       
       Credenciales activas:
       - Admin: admin@tramitly.mx / Admin123!
-      - Demo User: demo@tramitly.mx / Demo123! (con $1500 de balance)
+      - Demo User: demo@tramitly.mx / Demo123!
+
+  - agent: "testing"
+    message: |
+      ✅ BACKEND TESTING COMPLETE - 100% SUCCESS RATE
+      
+      All Tramitly API endpoints verified:
+      - POST /api/seed: Creates 6 services, admin, demo user with $1500 balance
+      - POST /api/auth/login: Both admin and demo credentials working
+      - GET /api/services: Returns 6 services
+      - POST /api/orders: Creates orders and deducts from balance
+      - POST /api/transactions/deposit: Adds funds to user balance
+      - GET /api/dashboard/stats: Returns user statistics
+      - GET /api/admin/dashboard: Returns admin KPIs
+      - GET /api/admin/users: Returns all users
+      - GET /api/admin/orders: Returns all orders with user info
   
   - agent: "testing"
     message: |
